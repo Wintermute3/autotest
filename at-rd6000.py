@@ -326,9 +326,6 @@ commands may be any of:
     v+### . . . . . step up voltage (float, volts)
     v-### . . . . . step down voltage (float, volts)
 
-    ovp=### . . . . set over-voltage protection limit (float, volts)
-    ocp=### . . . . set over-current protection limit (float, volts)
-
 commands may also be concatenated and separated by commas or colons, allowing
 a more compact notation.  for example, this command sequence sets to voltage
 to zero, turns the supply on, ramps the voltage from zero to 5 volts in 10 steps
@@ -362,23 +359,30 @@ def ShowErrorToken(Token):
   ShowError('could not be parsed because of this token: %s' % (Token))
 
 #==============================================================================
-# validate an integer or float command or throw an error
+# validate an integer or float command or throw an error.  also set a globel
+# as a side-effect.
 #==============================================================================
 
+Integer = 0
+
 def ValidInteger(Command, Length):
+  global Integer
   if len(Command) > Length:
     try:
-      i = int(Command[Length:])
+      Integer = int(Command[Length:])
     except:
       ShowErrorToken(Command)
   else:
     ShowErrorToken(Command)
   return Command
 
+Float = 0.0
+
 def ValidFloat(Command, Length):
+  global Float
   if len(Command) > Length:
     try:
-      f = float(Command[Length:])
+      Float = float(Command[Length:])
     except:
       ShowErrorToken(Command)
   else:
@@ -426,15 +430,76 @@ def TokenSplit(String):
   return tx
 
 #==============================================================================
-# parse arguments
+# run a sequence of commands, possibly recursively
+# 8 = voltage set
+# 9 = current set
+# 17 = 0=CV, 1=CC
+# 18 = output enable (on/off)
+# 72 = backlight
+#==============================================================================
+
+Supply = None
+
+Amps  = 0.0
+Volts = 0.0
+Time0 = 0.0
+
+def RunSequence(Sequence, Repeats=1):
+  global Amps, Volts
+  for Repeat in range(Repeats):
+    print('%d/%d' % (Repeat, Repeats))
+    for Token in Sequence:
+      Command = Token[0]
+      Parameter = Token[1]
+      if Command.startswith('*'):
+        Repeats = int(Command[1:])
+        RunSequence(Parameter,Repeats)
+      else:
+        print('  %7.2f  %6.3f  %6.3f  %s' % (time.time() - Time0, Volts, Amps, Command))
+        if Command == 'on':
+          Supply.backlight = 4
+          Supply.enable = 1
+        elif Command == 'off':
+          Supply.enable = 0
+          Supply.backlight = 1
+        elif Command == 'm':
+          time.sleep(float(Parameter) / 1000.0)
+        elif Command == 's':
+          time.sleep(Parameter)
+        elif Command == 'c=':
+          Amps = Parameter
+          Supply.current = Amps
+        elif Command == 'c+':
+          Amps += Parameter
+          Supply.current = Amps
+        elif Command == 'c-':
+          Amps -= Parameter
+          Supply.current = Amps
+        elif Command == 'v=':
+          Volts = Parameter
+          Supply.voltage = Amps
+        elif Command == 'v+':
+          Volts += Parameter
+          Supply.voltage = Amps
+        elif Command == 'v-':
+          Volts -= Parameter
+          Supply.voltage = Amps
+        else:
+          print('*** unknown command: %s' % (Command))
+          os._exit(1)
+
+#==============================================================================
+# parse arguments and build token list.  each token is an [opcode,parameter]
+# tuple where the the parameter may be None
 #==============================================================================
 
 SupplyIndex = 1
-Commands = []
+
+Tokens = []
 Depth = 0
 for arg in sys.argv[1:]:
   if arg.startswith('-'):
-    if Commands:
+    if Tokens:
       ShowErrorToken(arg) # options must come before commands
     else:
       if arg == '-h':
@@ -449,24 +514,52 @@ for arg in sys.argv[1:]:
   else:
     for a2 in TokenSplit(arg): # .split(','):
       if a2 in ['on','off']:
-        Commands.append(a2)
+        Tokens.append([a2,None])
       elif a2 == '[':
         Depth += 1
-        Commands.append(a2)
+        Tokens.append([a2,None])
       elif StartsWithAny(a2, [']='], 2):
         Depth -= 1
-        Commands.append(ValidInteger(a2, 2))
+        ValidInteger(a2, 2)
+        Tokens.append([a2[:1],Integer])
       elif StartsWithAny(a2, ['m='], 2):
-        Commands.append(ValidInteger(a2, 2))
-      elif StartsWithAny(a2, ['s=','c=','c+','c-','v=','v+','v-'], 2):
-        Commands.append(ValidFloat(a2, 2))
-      elif StartsWithAny(a2, ['ovp=','ocp='], 4):
-        Commands.append(ValidFloat(a2, 4))
+        ValidInteger(a2, 2)
+        Tokens.append([a2[:1], Integer])
+      elif StartsWithAny(a2, ['s='], 2):
+        ValidFloat(a2, 2)
+        Tokens.append([a2[:1], Float])
+      elif StartsWithAny(a2, ['c=','c+','c-','v=','v+','v-'], 2):
+        ValidFloat(a2, 2)
+        Tokens.append([a2[:2], Float])
       else:
         ShowErrorToken(a2)
 
 if not Depth == 0:
   ShowError('mismatched [ and ] group indicators')
+
+#==============================================================================
+# traverse the token list and 'fold' it into a hierarchical structure where
+# all sub-sequences are collected into a single * metacommand.
+#==============================================================================
+
+Sequence = []
+Stack = [Sequence]
+Starts = [0]
+for Token in Tokens:
+  if Token[0] == '[':
+    Stack.append([])
+    Sequence.append(['*',Stack[-1]])
+    Starts.append(Sequence[-1])
+    Sequence = Stack[-1]
+  elif Token[0] == ']':
+    Stack.pop()
+    Start = Starts.pop()
+    Start[0] = '*%s' % (Token[1])
+    Sequence = Stack[-1]
+  else:
+    Sequence.append(Token)
+
+Sequence = Stack[0]
 
 #==============================================================================
 # get access to a specific rd6006 programmable power supply
@@ -494,8 +587,8 @@ if len(Ports) < SupplyIndex:
   os._exit(1)
 
 try:
-  r = RD6006(Ports[SupplyIndex-1])
-  print('found an rd%d at index %d' % (r.type, SupplyIndex))
+  Supply = RD6006(Ports[SupplyIndex-1])
+  print('found an rd%d at index %d' % (Supply.type, SupplyIndex))
 except serial.serialutil.SerialException:
   print("*** you don't have permission to use the serial/usb port.  to fix this")
   print('*** sad state or affairs, first run the following command:')
@@ -506,11 +599,14 @@ except serial.serialutil.SerialException:
   print()
   os._exit(1)
 
-if Commands:
-  for Command in Commands:
-    print('%s' % (Command))
+print()
+if Tokens:
+  Time0 = time.time()
+  print('     secs   volts    amps')
+  print('  -------  ------  ------')
+  RunSequence(Sequence)
 else:
-  print('no commands, nothing to do')
+  print('no commands, nothing to do (ask for help with -h)')
 
 print()
 
