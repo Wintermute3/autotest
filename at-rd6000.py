@@ -7,11 +7,10 @@
 #==============================================================================
 
 PROGRAM = 'at-rd6000.py'
-VERSION = '2.102.111'
+VERSION = '2.102.121'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time
-import datetime as dt
 
 print()
 print("%s %s" % (PROGRAM, VERSION))
@@ -32,11 +31,12 @@ print()
 try:
   import minimalmodbus
 except:
-  print("*** the python3 library 'minimalmodbus' is not installed.  to fix this")
-  print('*** sad state or affairs, run the following command and try again:')
-  print()
-  print('  pip3 install minimalmodbus')
-  print()
+  print('%s' % ( '''\
+*** the python3 library 'minimalmodbus' is not installed.  to fix this
+*** sad state of affairs, run the following command and try again:
+
+  pip3 install minimalmodbus
+'''))
   os._exit(1)
 
 minimalmodbus.TIMEOUT = 0.5
@@ -579,7 +579,7 @@ try:
   print('  found an rd%d at index %d' % (Supply.type, SupplyIndex))
 except serial.serialutil.SerialException:
   print("*** you don't have permission to use the serial/usb port.  to fix this")
-  print('*** sad state or affairs, first run the following command:')
+  print('*** sad state of affairs, first run the following command:')
   print()
   print('  sudo usermod -a -G dialout $USER')
   print()
