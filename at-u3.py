@@ -12,7 +12,7 @@ PROGRAM = 'at-u3.py'
 VERSION = '2.102.121'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
-import os, sys, time
+import os, sys, time, json
 
 print()
 print("%s %s" % (PROGRAM, VERSION))
@@ -80,7 +80,7 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-n=1..12]
+    %s [-h] [-n=1..12] [-t=###] [-l=###] [-f=filename[.dat]]
 
 where:
 
@@ -100,45 +100,66 @@ where:
 
 for arg in sys.argv[1:]:
   if arg.startswith('-'):
-    if Tokens:
-      ShowErrorToken(arg) # options must come before commands
-    else:
-      if arg == '-h':
-        ShowHelp()
-      elif arg.startswith('-n='):
-        try:
-          InputCount = int(arg[3:])
-          if InputCount < 1 or InputCount > 12:
-            ShowErrorToken(arg)
-        except:
+    if arg == '-h':
+      ShowHelp()
+    elif arg.startswith('-n='):
+      try:
+        InputCount = int(arg[3:])
+        if InputCount < 1 or InputCount > 12:
           ShowErrorToken(arg)
-      elif arg.startswith('-l='):
-        try:
-          LoopCount = int(arg[3:])
-          if LoopCount < 1:
-            ShowErrorToken(arg)
-        except:
-          ShowErrorToken(arg)
-      elif arg.startswith('-t='):
-        try:
-          LoopDelay = int(arg[3:])
-          if LoopDelay < 1:
-            ShowErrorToken(arg)
-        except:
-          ShowErrorToken(arg)
-      else:
+      except:
         ShowErrorToken(arg)
+    elif arg.startswith('-l='):
+      try:
+        LoopCount = int(arg[3:])
+        if LoopCount < 1:
+          ShowErrorToken(arg)
+      except:
+        ShowErrorToken(arg)
+    elif arg.startswith('-t='):
+      try:
+        LoopDelay = int(arg[3:])
+        if LoopDelay < 1:
+          ShowErrorToken(arg)
+      except:
+        ShowErrorToken(arg)
+    elif arg.startswith('-f='):
+      try:
+        FileName = arg[3:]
+        if len(FileName) < 1:
+          ShowErrorToken(arg)
+        if not '.' in FileName:
+          FileName += '.dat'
+      except:
+        ShowErrorToken(arg)
+    else:
+      ShowErrorToken(arg)
   else:
     ShowErrorToken(arg)
 
 #==============================================================================
-#
+# show the active option values
 #==============================================================================
 
+print('  input count  . . . %d'              % (InputCount))
+print('  loop delay . . . . %d milliseconds' % (LoopDelay))
+print('  loop count . . . . %d'              % (LoopCount))
+print('  filename . . . . . %s'              % (FileName))
+
+#==============================================================================
+# do the actual sampling
+#==============================================================================
+
+print()
+print('final input vector:')
+print()
+
+LoopDelay = float(LoopDelay) / 1000.0
 QuickSample = 1
 LongSettling = 0
-
+InputSet = []
 InputValues = [0] * InputCount
+Time0 = time.time()
 try:
   LabJack = u3.U3()
   LabJack.getCalibrationData()
@@ -165,7 +186,13 @@ try:
         else:
           lowVoltage = True
         InputValues[Input] = LabJack.binaryToCalibratedAnalogVoltage(results[2 + Input], isLowVoltage=lowVoltage, isSingleEnded=True)
-    print("Last readings: %s" % InputValues)
+      Time = time.time() - Time0
+      InputSet.append({'time': Time, 'values': InputValues})
+      time.sleep(LoopDelay)
+    Summary = ''
+    for Input in range(InputCount):
+      Summary += '%6.3f  ' % (InputValues[Input])
+    print(' %s' % Summary)
   finally:
     LabJack.close()
 except:
@@ -181,14 +208,18 @@ except:
   print()
   os._exit(1)
 
-
-#==============================================================================
-
-
-
+with open(FileName, 'w') as f:
+  Channels = []
+  for Input in range(InputCount):
+    Channels.append('input-%d' % Input)
+  DataSet = {
+    'channels': Channels,
+    'data'    : InputSet
+  }
+  f.write(json.dumps(DataSet, indent=2))
 
 print()
-print('done')
+print('done - wrote %d sample sets to %s' % (len(InputSet), FileName))
 print()
 
 #==============================================================================

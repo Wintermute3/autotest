@@ -10,7 +10,7 @@ PROGRAM = 'at-rd6000.py'
 VERSION = '2.102.121'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
-import os, sys, time
+import os, sys, time, json
 
 print()
 print("%s %s" % (PROGRAM, VERSION))
@@ -246,6 +246,8 @@ class RD6006:
 # show usage help
 #==============================================================================
 
+FileName = '%s.dat' % (PROGRAM.split('.')[0])
+
 def ShowHelp():
   HelpText = '''\
     riden rd6000-series programmable power-supply control.  can perform simple timed
@@ -253,12 +255,13 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-i=1/2/3/4...] command {command {command...}}
+    %s [-h] [-i=1/2/3/4...] [-f=filename[.dat]] command {command {command...}}
 
 where:
 
     -h . . . . . . this help text
     -i=# . . . . . specify power supply index (default 1)
+    -f=xxxx  . . . name of output file (default '%s')
     command  . . . command, as listed below (repeat as desired)
 
 if more than one power supply, select the desired one by supplying an integer
@@ -298,7 +301,7 @@ of 500mv at a rate of one step per second, then turns the supply off:
 
 note that groups can be nested, allowing for some complex sequences.
 '''
-  print(HelpText % (sys.argv[0]))
+  print(HelpText % (sys.argv[0], FileName))
   os._exit(1)
 
 #==============================================================================
@@ -402,6 +405,8 @@ Amps  = 0.0
 Volts = 0.0
 Time0 = 0.0
 
+OutputSet = []
+
 def RunSequence(Sequence, Repeats, Depth):
   global Amps, Volts, Time0
   if Depth == 1:
@@ -415,6 +420,7 @@ def RunSequence(Sequence, Repeats, Depth):
       if Command.startswith('*'):
         RunSequence(Parameter, int(Command[1:]), Depth+1)
       else:
+        Time = time.time() - Time0
         if Command == 'on':
           Supply.enable = 1
           Parameter = ''
@@ -437,26 +443,32 @@ def RunSequence(Sequence, Repeats, Depth):
           Amps = Parameter
           Supply.current = Amps
           Parameter = '%1.3f' % (Parameter)
+          OutputSet.append({'time': Time, 'values': [Volts, Amps]})
         elif Command == 'c+':
           Amps += Parameter
           Supply.current = Amps
           Parameter = '%1.3f' % (Parameter)
+          OutputSet.append({'time': Time, 'values': [Volts, Amps]})
         elif Command == 'c-':
           Amps -= Parameter
           Supply.current = Amps
           Parameter = '%1.3f' % (Parameter)
+          OutputSet.append({'time': Time, 'values': [Volts, Amps]})
         elif Command == 'v=':
           Volts = Parameter
           Supply.voltage = Volts
           Parameter = '%1.3f' % (Parameter)
+          OutputSet.append({'time': Time, 'values': [Volts, Amps]})
         elif Command == 'v+':
           Volts += Parameter
           Supply.voltage = Volts
           Parameter = '%1.3f' % (Parameter)
+          OutputSet.append({'time': Time, 'values': [Volts, Amps]})
         elif Command == 'v-':
           Volts -= Parameter
           Supply.voltage = Volts
           Parameter = '%1.3f' % (Parameter)
+          OutputSet.append({'time': Time, 'values': [Volts, Amps]})
         elif Command == 'ocp=':
           Supply.current_protection = Parameter
           Parameter = '%1.3f' % (Parameter)
@@ -470,7 +482,7 @@ def RunSequence(Sequence, Repeats, Depth):
         while len(Cursor) < 18:
           Cursor += ' '
         print('%s %7.2f  %6.3f  %6.3f  %s%s' % (
-          Cursor, time.time() - Time0, Volts, Amps, Command, Parameter
+          Cursor, Time, Volts, Amps, Command, Parameter
         ))
 
 #==============================================================================
@@ -492,6 +504,15 @@ for arg in sys.argv[1:]:
       elif arg.startswith('-i='):
         try:
           SupplyIndex = int(arg[3:])
+        except:
+          ShowErrorToken(arg)
+      elif arg.startswith('-f='):
+        try:
+          FileName = arg[3:]
+          if len(FileName) < 1:
+            ShowErrorToken(arg)
+          if not '.' in FileName:
+            FileName += '.dat'
         except:
           ShowErrorToken(arg)
       else:
@@ -595,8 +616,15 @@ if Tokens:
 else:
   print('no commands, nothing to do (ask for help with -h)')
 
+with open(FileName, 'w') as f:
+  DataSet = {
+    'channels': ['volts','amps'],
+    'data'    : OutputSet
+  }
+  f.write(json.dumps(DataSet, indent=2))
+
 print()
-print('done')
+print('done - wrote %d sample sets to %s' % (len(OutputSet), FileName))
 print()
 
 #==============================================================================
