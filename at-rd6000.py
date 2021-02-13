@@ -39,7 +39,6 @@ except:
   print()
   os._exit(1)
 
-
 minimalmodbus.TIMEOUT = 0.5
 
 class RD6006:
@@ -64,9 +63,9 @@ class RD6006:
 
   def _read_register(self, register):
     try:
-        return self.instrument.read_register(register)
+      return self.instrument.read_register(register)
     except minimalmodbus.NoResponseError:
-        return self._read_register(register)
+      return self._read_register(register)
 
   def _read_registers(self, start, length):
     try:
@@ -88,48 +87,6 @@ class RD6006:
     print(
       f"M{M}: {regs[0] / self.voltres:4.1f}V, {regs[1] / self.ampres:3.3f}A, OVP:{regs[2] / self.voltres:4.1f}V, OCP:{regs[3] / self.ampres:3.3f}A"
     )
-
-  def status(self):
-    regs = self._read_registers(0, 84)
-    print("== Device")
-    print(f"Model   : {regs[0]/10}")
-    print(f"SN      : {(regs[1]<<16 | regs[2]):08d}")
-    print(f"Firmware: {regs[3]/100}")
-    print(f"Input   : {regs[14] / self.voltres}V")
-    if regs[4]:
-      sign = -1
-    else:
-      sign = +1
-    print(f"Temp    : {sign * regs[5]}°C")
-    if regs[34]:
-      sign = -1
-    else:
-      sign = +1
-    print(f"TempProb: {sign * regs[35]}°C")
-    print("== Output")
-    print(f"Voltage : {regs[10] / self.voltres}V")
-    print(f"Current : {regs[11] / self.ampres}A")
-    print(f"Energy  : {regs[12]/1000}Ah")
-    print(f"Power   : {regs[13]/100}W")
-    print("== Settings")
-    print(f"Voltage : {regs[8] / self.voltres}V")
-    print(f"Current : {regs[9] / self.ampres}A")
-    print("== Protection")
-    print(f"Voltage : {regs[82] / self.voltres}V")
-    print(f"Current : {regs[83] / self.ampres}A")
-    print("== Battery")
-    if regs[32]:
-      print("Active")
-      print(f"Voltage : {regs[33] / self.voltres}V")
-    print(
-      f"Capacity: {(regs[38] <<16 | regs[39])/1000}Ah"
-    )  # TODO check 8 or 16 bits?
-    print(
-      f"Energy  : {(regs[40] <<16 | regs[41])/1000}Wh"
-    )  # TODO check 8 or 16 bits?
-    print("== Memories")
-    for m in range(10):
-      self._mem(M=m)
 
   @property
   def input_voltage(self):
@@ -312,6 +269,9 @@ commands may be any of:
     on  . . . . . . turn supply on
     off . . . . . . turn supply off
 
+    bl+ . . . . . . turn backlight on
+    bl- . . . . . . turn backlight off
+
     [ . . . . . . . open group
     ]=# . . . . . . close group and repeat (integer)
 
@@ -326,12 +286,15 @@ commands may be any of:
     v+### . . . . . step up voltage (float, volts)
     v-### . . . . . step down voltage (float, volts)
 
-commands may also be concatenated and separated by commas or colons, allowing
-a more compact notation.  for example, this command sequence sets to voltage
-to zero, turns the supply on, ramps the voltage from zero to 5 volts in 10 steps
+    ocp=### . . . . set overcurrent protection (float, amps)
+    ovp=### . . . . set overvoltage protection (float, volts)
+
+commands may also be concatenated and separated by commas, allowing a more
+compact notation.  for example, this command sequence sets to voltage to
+zero, turns the supply on, ramps the voltage from zero to 5 volts in 10 steps
 of 500mv at a rate of one step per second, then turns the supply off:
 
-  v=0,on,[v+0.5,s=1]=10,off
+  v=0,on [v+0.5,s=1]=10 off
 
 note that groups can be nested, allowing for some complex sequences.
 '''
@@ -431,11 +394,6 @@ def TokenSplit(String):
 
 #==============================================================================
 # run a sequence of commands, possibly recursively
-# 8 = voltage set
-# 9 = current set
-# 17 = 0=CV, 1=CC
-# 18 = output enable (on/off)
-# 72 = backlight
 #==============================================================================
 
 Supply = None
@@ -444,49 +402,76 @@ Amps  = 0.0
 Volts = 0.0
 Time0 = 0.0
 
-def RunSequence(Sequence, Repeats=1):
-  global Amps, Volts
+def RunSequence(Sequence, Repeats, Depth):
+  global Amps, Volts, Time0
+  if Depth == 1:
+    print('  step/steps          secs   volts    amps  command')
+    print('  ---------------  -------  ------  ------  ---------')
+    Time0 = time.time()
   for Repeat in range(Repeats):
-    print('%d/%d' % (Repeat, Repeats))
     for Token in Sequence:
       Command = Token[0]
       Parameter = Token[1]
       if Command.startswith('*'):
-        Repeats = int(Command[1:])
-        RunSequence(Parameter,Repeats)
+        RunSequence(Parameter, int(Command[1:]), Depth+1)
       else:
-        print('  %7.2f  %6.3f  %6.3f  %s' % (time.time() - Time0, Volts, Amps, Command))
         if Command == 'on':
-          Supply.backlight = 4
           Supply.enable = 1
+          Parameter = ''
         elif Command == 'off':
           Supply.enable = 0
+          Parameter = ''
+        elif Command == 'bl+':
+          Supply.backlight = 4
+          Parameter = ''
+        elif Command == 'bl-':
           Supply.backlight = 1
+          Parameter = ''
         elif Command == 'm':
           time.sleep(float(Parameter) / 1000.0)
+          Parameter = '=%d' % (Parameter)
         elif Command == 's':
           time.sleep(Parameter)
+          Parameter = '=%1.3f' % (Parameter)
         elif Command == 'c=':
           Amps = Parameter
           Supply.current = Amps
+          Parameter = '%1.3f' % (Parameter)
         elif Command == 'c+':
           Amps += Parameter
           Supply.current = Amps
+          Parameter = '%1.3f' % (Parameter)
         elif Command == 'c-':
           Amps -= Parameter
           Supply.current = Amps
+          Parameter = '%1.3f' % (Parameter)
         elif Command == 'v=':
           Volts = Parameter
-          Supply.voltage = Amps
+          Supply.voltage = Volts
+          Parameter = '%1.3f' % (Parameter)
         elif Command == 'v+':
           Volts += Parameter
-          Supply.voltage = Amps
+          Supply.voltage = Volts
+          Parameter = '%1.3f' % (Parameter)
         elif Command == 'v-':
           Volts -= Parameter
-          Supply.voltage = Amps
+          Supply.voltage = Volts
+          Parameter = '%1.3f' % (Parameter)
+        elif Command == 'ocp=':
+          Supply.current_protection = Parameter
+          Parameter = '%1.3f' % (Parameter)
+        elif Command == 'ovp=':
+          Supply.voltage_protection = Parameter
+          Parameter = '%1.3f' % (Parameter)
         else:
           print('*** unknown command: %s' % (Command))
           os._exit(1)
+        Cursor = '%s%02d/%02d' % ('  ' * Depth, Repeat+1, Repeats)
+        while len(Cursor) < 18:
+          Cursor += ' '
+        print('%s %7.2f  %6.3f  %6.3f  %s%s' % (
+          Cursor, time.time() - Time0, Volts, Amps, Command, Parameter
+        ))
 
 #==============================================================================
 # parse arguments and build token list.  each token is an [opcode,parameter]
@@ -513,7 +498,7 @@ for arg in sys.argv[1:]:
         ShowErrorToken(arg)
   else:
     for a2 in TokenSplit(arg): # .split(','):
-      if a2 in ['on','off']:
+      if a2 in ['on','off','bl+','bl-']:
         Tokens.append([a2,None])
       elif a2 == '[':
         Depth += 1
@@ -531,6 +516,9 @@ for arg in sys.argv[1:]:
       elif StartsWithAny(a2, ['c=','c+','c-','v=','v+','v-'], 2):
         ValidFloat(a2, 2)
         Tokens.append([a2[:2], Float])
+      elif StartsWithAny(a2, ['ocp=','ovp='], 4):
+        ValidFloat(a2, 4)
+        Tokens.append([a2[:4], Float])
       else:
         ShowErrorToken(a2)
 
@@ -573,7 +561,7 @@ for Port in list(serial.tools.list_ports.comports()):
   if "VID:PID=1A86:7523" in Port[2]:
     Ports.append(Port[0])
 
-print('found %d power supplies' % (len(Ports)))
+print('  found %d power supplies' % (len(Ports)))
 if not len(Ports):
   print()
   print("*** unable to find a power supplies - is one plugged in and turned on?")
@@ -588,7 +576,7 @@ if len(Ports) < SupplyIndex:
 
 try:
   Supply = RD6006(Ports[SupplyIndex-1])
-  print('found an rd%d at index %d' % (Supply.type, SupplyIndex))
+  print('  found an rd%d at index %d' % (Supply.type, SupplyIndex))
 except serial.serialutil.SerialException:
   print("*** you don't have permission to use the serial/usb port.  to fix this")
   print('*** sad state or affairs, first run the following command:')
@@ -601,13 +589,14 @@ except serial.serialutil.SerialException:
 
 print()
 if Tokens:
-  Time0 = time.time()
-  print('     secs   volts    amps')
-  print('  -------  ------  ------')
-  RunSequence(Sequence)
+  print('executing sequence of %d commands:' % (len(Tokens)))
+  print()
+  RunSequence(Sequence, 1, 1)
 else:
   print('no commands, nothing to do (ask for help with -h)')
 
+print()
+print('done')
 print()
 
 #==============================================================================
