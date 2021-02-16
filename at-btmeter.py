@@ -175,15 +175,21 @@ except serial.serialutil.SerialException:
   print()
   os._exit(1)
 
+# eliminate all non-essential leading zeros, and also get rid of leading
+# negative signs on otherwise zero values.
+
 def RemoveLeadingZeros(Reading):
   if Reading.startswith('-'):
-    return '-' + RemoveLeadingZeros(Reading[1:])
-  while Reading.startswith('00'):
-    Reading = Reading[1:]
-  if len(Reading) > 2:
-    if Reading.startswith('0'):
-      if Reading[1:2] in '123456789':
-        Reading = Reading[1:]
+    Normalized = RemoveLeadingZeros(Reading[1:])
+    for Digit in Normalized:
+      if Digit in '123456789':
+        return '-' + Normalized
+    return Normalized
+  while Reading.startswith('0') and len(Reading) > 1:
+    if Reading[1:2] in '0123456789':
+      Reading = Reading[1:]
+    else:
+      break
   return Reading
 
 def DecodeDigit(Digit):
@@ -213,18 +219,32 @@ def DecodeDigit(Digit):
     return '9'
   raise Exception('Digit $%02x' % Digit)
 
+# determine what units to display, and what scale factor to
+# apply, as well as the format to use to display the value
+
 def DecodeUnits(Units):
   if Units == '08041':
-    return 'V', 0.001 # mV
+    return 'Volts', 0.001, '%6.4f' # mV, 0.1mV resolution
   if Units == '00041':
-    return 'V', 1.0 # V
+    return 'Volts', 1.0, '%5.3f' # V, 1.0mV resolution
   if Units == '00401':
-    return 'Ω', 1.0 # ohms
+    return 'Ohms', 1.0, '%3.1f' # ohms, 0.1 ohm resolution
   if Units == '20401':
-    return 'Ω', 1000.0 # kilohms
+    return 'Ohms', 1000.0, '%1.0f' # kilohms, 1 ohm resolution
   if Units == '02401':
-    return 'Ω', 1000000.0 # megaohms
+    return 'Ohms', 1000000.0, '%1.0f' # megaohms, 1000 ohm resolution
+  if Units == '80081':
+    return 'Amps', 0.000001, '%9.7f' # uA, 0.1uA resolution
+  if Units == '08081':
+    return 'Amps', 0.001, '%6.4f' # mA, 0.1mA resolution
+  if Units == '00081':
+    return 'Amps', 1.0, '%5.3f' # A, 1mA resolution
   raise Exception('Units %s' % (Units))
+
+def DumpBuffer(Buffer):
+  for B in Buffer:
+    print(' %02x' % (B), end='')
+  print()
 
 def DecodeBuffer(Buffer):
   for Index, Data in enumerate(Buffer):
@@ -255,9 +275,9 @@ def DecodeBuffer(Buffer):
       Image += DecodeDigit(Digit)
     else:
       Units += '%x' % (Nibble)
-  Units, Scale = DecodeUnits(Units)
+  Units, Scale, Format = DecodeUnits(Units)
   Value = float(RemoveLeadingZeros(Image)) * Scale
-  return Value, Units
+  return Value, Units, Format
 
 print('  waiting for data')
 Time0 = time.time()
@@ -271,18 +291,19 @@ while True:
     if TimeX > 0.100:
       if Buffer:
         try:
-          Value, Units = DecodeBuffer(Buffer)
+          Value, Units, Format = DecodeBuffer(Buffer)
           if not OutputSet:
             OutputTime = time.time()
             OutputUnits = Units
             print('  recording data')
             print()
           ValueTime = time.time() - OutputTime
-          OutputSet.append({'time': '%5.3f' % (ValueTime), 'values': [Value]})
-          print('  %04d  %05.1f  %11.3fs %s  \r' % (len(OutputSet), ValueTime, Value, Units), end='')
+          OutputSet.append({'time': '%5.3f' % (ValueTime), 'values': [Format % (Value)]})
+          print('  %04d  %05.1f  %15.7f %s  \r' % (len(OutputSet), ValueTime, Value, Units), end='')
         except KeyboardInterrupt:
           raise
         except:
+          # DumpBuffer(Buffer)
           pass
       Buffer = b''
     Buffer += Data
