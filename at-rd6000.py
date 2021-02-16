@@ -7,7 +7,7 @@
 #==============================================================================
 
 PROGRAM = 'at-rd6000.py'
-VERSION = '2.102.121'
+VERSION = '2.102.151'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -246,7 +246,7 @@ class RD6006:
 # show usage help
 #==============================================================================
 
-FileName = '%s.dat' % (PROGRAM.split('.')[0])
+FileName = '%s.json' % (PROGRAM.split('.')[0])
 
 def ShowHelp():
   HelpText = '''\
@@ -255,7 +255,7 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-i=1/2/3/4...] [-f=filename[.dat]] command {command {command...}}
+    %s [-h] [-i=1/2/3/4...] [-f=filename[.json]] command {command {command...}}
 
 where:
 
@@ -512,7 +512,7 @@ for arg in sys.argv[1:]:
           if len(FileName) < 1:
             ShowErrorToken(arg)
           if not '.' in FileName:
-            FileName += '.dat'
+            FileName += '.json'
         except:
           ShowErrorToken(arg)
       else:

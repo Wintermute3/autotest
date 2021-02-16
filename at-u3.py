@@ -9,7 +9,7 @@
 #==============================================================================
 
 PROGRAM = 'at-u3.py'
-VERSION = '2.102.121'
+VERSION = '2.102.151'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -66,7 +66,7 @@ def ShowErrorToken(Token):
 InputCount =   4
 LoopCount  =  10
 LoopDelay  = 100
-FileName   = '%s.dat' % (PROGRAM.split('.')[0])
+FileName   = '%s.json' % (PROGRAM.split('.')[0])
 
 #==============================================================================
 # show usage help
@@ -80,7 +80,7 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-n=1..12] [-t=###] [-l=###] [-f=filename[.dat]]
+    %s [-h] [-n=1..12] [-t=###] [-l=###] [-f=filename[.json]]
 
 where:
 
@@ -129,7 +129,7 @@ for arg in sys.argv[1:]:
         if len(FileName) < 1:
           ShowErrorToken(arg)
         if not '.' in FileName:
-          FileName += '.dat'
+          FileName += '.json'
       except:
         ShowErrorToken(arg)
     else:
