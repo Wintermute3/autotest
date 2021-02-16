@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-btmeter.py'
-VERSION = '2.102.141'
+VERSION = '2.102.151'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json, serial
@@ -18,7 +18,7 @@ print()
 # show usage help
 #==============================================================================
 
-FileName = '%s.dat' % (PROGRAM.split('.')[0])
+FileName = '%s.json' % (PROGRAM.split('.')[0])
 
 def ShowHelp():
   HelpText = '''\
@@ -175,28 +175,22 @@ except serial.serialutil.SerialException:
   print()
   os._exit(1)
 
-print()
-Time0 = time.time()
-OutputSet = []
-print('baudrate: %d' % (BaudRate))
-
-# first nibble of each byte is index in chunk 1..14
-# second nibble carries data:
-#
-#                        mode  read  units
-#                        ----- ----- -----
-# 7 7d 7d 7d fd 08041    Volts 000.0 mv
-# 3 7d 7d 7d fd 00401    Ohms  000.0 Ohms
-# 7 7d 3e a7 7f 00041    Volts 05.48 V
-# 7 7d 1f ff 3f 00041          03.89
-# 7 7d 1f bf 7d 00041          03.90
-# 7 7d 1f 95 7e 00041          03.76
-# 7 5b 85 3e 5b 00041          2.152
-# 7 05 bf 5b 27 00041          1.924 V
-# 342.0         08041          342.0 mv
-
+def RemoveLeadingZeros(Reading):
+  if Reading.startswith('-'):
+    return '-' + RemoveLeadingZeros(Reading[1:])
+  while Reading.startswith('00'):
+    Reading = Reading[1:]
+  if len(Reading) > 2:
+    if Reading.startswith('0'):
+      if Reading[1:2] in '123456789':
+        Reading = Reading[1:]
+  return Reading
 
 def DecodeDigit(Digit):
+  if Digit == 0x00:
+    raise Exception('Digit $%02x' % Digit) # ' '
+  if Digit == 0x68:
+    raise Exception('Digit $%02x' % Digit) # 'L'
   if Digit == 0x7d:
     return '0'
   if Digit == 0x05:
@@ -217,52 +211,90 @@ def DecodeDigit(Digit):
     return '8'
   if Digit == 0x3f:
     return '9'
-  return '#'
+  raise Exception('Digit $%02x' % Digit)
+
+def DecodeUnits(Units):
+  if Units == '08041':
+    return 'V', 0.001 # mV
+  if Units == '00041':
+    return 'V', 1.0 # V
+  if Units == '00401':
+    return 'Ω', 1.0 # ohms
+  if Units == '20401':
+    return 'Ω', 1000.0 # kilohms
+  if Units == '02401':
+    return 'Ω', 1000000.0 # megaohms
+  raise Exception('Units %s' % (Units))
 
 def DecodeBuffer(Buffer):
   for Index, Data in enumerate(Buffer):
     Check = (Data // 16) - 1
     if Index != Check:
-      return '*'
+      raise Exception('Bad Check Nibble')
   Image = ''
+  Units = ''
   for Index, Data in enumerate(Buffer):
     Nibble = Data % 16
     if Index == 0:
       if Nibble == 7:
-        Image += 'Volts '
+        pass # Image += 'Volts '
+      elif Nibble == 3:
+        pass # Image += 'Ohms '
       else:
-        Image += '? '
+        raise Exception('Bad Scale Nibble $%02x' % (Data))
     elif Index in [1,3,5,7]:
       if Nibble & 0x08:
-        Image += '.'
+        if Index == 1:
+          Image += '-'
+        else:
+          Image += '.'
         Nibble &= ~0x08
       Digit = Nibble * 16
     elif Index in [2,4,6,8]:
       Digit += Nibble
       Image += DecodeDigit(Digit)
     else:
-      if Index == 9:
-        Image += ' '
-      Image += '%x' % (Nibble)
-  return Image
+      Units += '%x' % (Nibble)
+  Units, Scale = DecodeUnits(Units)
+  Value = float(RemoveLeadingZeros(Image)) * Scale
+  return Value, Units
 
+print('  waiting for data')
+Time0 = time.time()
+OutputSet = []
 Buffer = b''
 while True:
-  Data = Meter.read()
-  Time1 = time.time()
-  TimeX = Time1 - Time0
-  if TimeX > 0.100:
-    if Buffer:
-      Image = DecodeBuffer(Buffer)
-      print('  %s' % (Image))
-    Buffer = b''
-  Buffer += Data
-  Time0 = Time1
+  try:
+    Data = Meter.read()
+    Time1 = time.time()
+    TimeX = Time1 - Time0
+    if TimeX > 0.100:
+      if Buffer:
+        try:
+          Value, Units = DecodeBuffer(Buffer)
+          if not OutputSet:
+            OutputTime = time.time()
+            OutputUnits = Units
+            print('  recording data')
+            print()
+          ValueTime = time.time() - OutputTime
+          OutputSet.append({'time': '%5.3f' % (ValueTime), 'values': [Value]})
+          print('  %04d  %05.1f  %11.3fs %s  \r' % (len(OutputSet), ValueTime, Value, Units), end='')
+        except KeyboardInterrupt:
+          raise
+        except:
+          pass
+      Buffer = b''
+    Buffer += Data
+    Time0 = Time1
+  except KeyboardInterrupt:
+    print('\r  ')
+    break
 
 with open(FileName, 'w') as f:
   DataSet = {
-    'channels': ['volts','amps'],
-    'data'    : OutputSet
+    'channels': [OutputUnits],
+    'data'    :  OutputSet
   }
   f.write(json.dumps(DataSet, indent=2))
 
