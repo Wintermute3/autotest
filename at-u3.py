@@ -66,7 +66,7 @@ def ShowErrorToken(Token):
 InputCount =   4
 LoopCount  =  10
 LoopDelay  = 100
-FileName   = '%s.json' % (PROGRAM.split('.')[0])
+FileName   = '.%s.json' % (PROGRAM.split('.')[0])
 
 #==============================================================================
 # show usage help

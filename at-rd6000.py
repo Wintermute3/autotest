@@ -246,7 +246,7 @@ class RD6006:
 # show usage help
 #==============================================================================
 
-FileName = '%s.json' % (PROGRAM.split('.')[0])
+FileName = '.%s.json' % (PROGRAM.split('.')[0])
 
 def ShowHelp():
   HelpText = '''\
