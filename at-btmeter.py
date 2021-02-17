@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-btmeter.py'
-VERSION = '2.102.151'
+VERSION = '2.102.171'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json, serial
@@ -164,7 +164,7 @@ ChunkSize = 14
 
 try:
   Meter = serial.Serial(Ports[MeterIndex-1], BaudRate, timeout=1)
-  print('  found a btmeter at index %d' % (MeterIndex))
+  print('  using multimeter at index %d' % (MeterIndex))
 except serial.serialutil.SerialException:
   print("*** you don't have permission to use the serial/usb port.  to fix this")
   print('*** sad state of affairs, first run the following command:')
@@ -175,8 +175,28 @@ except serial.serialutil.SerialException:
   print()
   os._exit(1)
 
-# eliminate all non-essential leading zeros, and also get rid of leading
-# negative signs on otherwise zero values.
+
+#==============================================================================
+# the following routines decipher the datastream from the meter, which is in
+# the form of 14-byte blocks, transmitted at 2400 baud, approximately twice
+# per second.  the first nibble of each byte is the 1-based index in the
+# block.  the second nibble positionally-encodes various data as follows:
+#
+#   index  second nibble
+#   -----  -----------------------
+#     1    ac/dc indicator
+#    2-9   4 display digits
+#   10-11  exponent (u, m, K, M or none)
+#   12-13  unit (volts, amps, ohms)
+#     14   always a 1
+#
+# digits are encoded by two nibbles each, with the high bit of the resulting
+# byte indicating either a minus sign (for the first digit only) or a leading
+# decimal (for subsequent digits).  the actual 7-bit encodings of the digits
+# are literal mappings of the 7-segment LCD display segments.
+#==============================================================================
+
+# eliminate redundant leading zeros and negative signs on zero values
 
 def RemoveLeadingZeros(Reading):
   if Reading.startswith('-'):
@@ -191,6 +211,14 @@ def RemoveLeadingZeros(Reading):
     else:
       break
   return Reading
+
+# bitmasks for 7-segment digits:
+#
+#    ---       10
+#   |   |   20    01
+#    ---       02
+#   |   |   40    04
+#    ---       08
 
 def DecodeDigit(Digit):
   if Digit == 0x00:
@@ -219,42 +247,17 @@ def DecodeDigit(Digit):
     return '9'
   raise Exception('Digit $%02x' % Digit)
 
-# determine what units to display, and what scale factor to
-# apply, as well as the format to use to display the value
-
-#           1.0  3.1    5.3    6.4
-#  volts        00401  00041  08041
-#   ohms  20401
-#   amps
-
-
-'''
-UnitMap = {
-   {'08041': {'unit': 'VDC', 'max': '400.0', 'e': -3}}, # xxx.x mV
-   {'00041': {'unit': 'VDC', 'max': '4.000', 'e':  0}}, # x.xxx  V
-   {'00041': {'unit': 'VDC', 'max': '40.00', 'e':  0}}, # xx.xx  V
-   {'00041': {'unit': 'VDC', 'max': '400.0', 'e':  0}}, # xxx.x  V
-   {'00041': {'unit': 'VDC', 'max': '1000.', 'e':  0}}, # xxxx.  V
-
-   {'00401': {'unit': 'OHM', 'max': '400.0', 'e':  0}}, # xxx.x  R
-   {'20401': {'unit': 'OHM', 'max': '4.000', 'e':  3}}, # x.xxx KR
-   {'20401': {'unit': 'OHM', 'max': '40.00', 'e':  3}}, # xx.xx KR
-   {'20401': {'unit': 'OHM', 'max': '400.0', 'e':  3}}, # xxx.x KR
-   {'02401': {'unit': 'OHM', 'max': '4.000', 'e':  6}}, # xxxx. MR
-   {'02401': {'unit': 'OHM', 'max': '40.00', 'e':  6}}, # xxx.x MR
-
-   {'80081': {'unit': 'ADC', 'max': '400.0', 'e': -6}}, # xxx.x uA
-   {'80081': {'unit': 'ADC', 'max': '4000.', 'e': -6}}, # xxxx. uA
-   {'08081': {'unit': 'ADC', 'max': '40.00', 'e': -3}}, # xx.xx mA
-   {'08081': {'unit': 'ADC', 'max': '400.0', 'e': -3}}, # xxx.x mA
-   {'00081': {'unit': 'ADC', 'max': '4.000', 'e':  0}}, # x.xxx  A
-   {'00081': {'unit': 'ADC', 'max': '20.00', 'e':  0}}, # xx.xx  A
-}
-'''
-
-#   #####
-#   ||+++---- 041=Volt, 401=Ohm, 081=Amp
-#   ++------- 02=M, 08=m, 20=K, 80=u
+# determine what units to display, and what scale factor to apply, as well
+# as the format to use to display the value.  the flags word is 5 digits,
+# bit-mapped like this:
+#
+#   80000 u (micro)
+#   20000 K (kilo)
+#   08000 m (milli)
+#   02000 M (mega)
+#   00400 ohm
+#   00080 amp
+#   00040 volt
 
 def DecodeFlags(Flags):
   if   Flags[2:] == '041':
@@ -286,10 +289,8 @@ def DecodeFlags(Flags):
     raise Exception('Exponent [%s]' % (Flags[:2]))
   return Unit, Exponent, Format
 
-def DumpBuffer(Buffer):
-  for B in Buffer:
-    print(' %02x' % (B), end='')
-  print()
+# determine the meter reading, and return the numeric value, the unit, and
+# the best format to display it
 
 def DecodeBuffer(Buffer):
   for Index, Data in enumerate(Buffer):
@@ -330,6 +331,10 @@ def DecodeBuffer(Buffer):
   Unit = AcDc + Unit
   return Value, Unit, Format
 
+#==============================================================================
+# catch the datastream from the meter
+#==============================================================================
+
 print('  waiting for data')
 Time0 = time.time()
 OutputSet = []
@@ -355,7 +360,9 @@ while True:
         except KeyboardInterrupt:
           raise
         except:
-          #DumpBuffer(Buffer)
+          #for B in Buffer:
+          #  print(' %02x' % (B), end='')
+          #print()
           pass
       Buffer = b''
     Buffer += Data
@@ -364,12 +371,20 @@ while True:
     print('\r  ')
     break
 
+#==============================================================================
+# output the captured data to the json datafile
+#==============================================================================
+
 with open(FileName, 'w') as f:
   DataSet = {
     'channels': [OutputUnit],
     'data'    :  OutputSet
   }
   f.write(json.dumps(DataSet, indent=2))
+
+#==============================================================================
+# sign off
+#==============================================================================
 
 print()
 print("done - wrote %d sample sets to file: '%s'" % (len(OutputSet), FileName))
