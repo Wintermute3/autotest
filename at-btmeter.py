@@ -222,24 +222,69 @@ def DecodeDigit(Digit):
 # determine what units to display, and what scale factor to
 # apply, as well as the format to use to display the value
 
-def DecodeUnits(Units):
-  if Units == '08041':
-    return 'Volts', 0.001, '%6.4f' # mV, 0.1mV resolution
-  if Units == '00041':
-    return 'Volts', 1.0, '%5.3f' # V, 1.0mV resolution
-  if Units == '00401':
-    return 'Ohms', 1.0, '%3.1f' # ohms, 0.1 ohm resolution
-  if Units == '20401':
-    return 'Ohms', 1000.0, '%1.0f' # kilohms, 1 ohm resolution
-  if Units == '02401':
-    return 'Ohms', 1000000.0, '%1.0f' # megaohms, 1000 ohm resolution
-  if Units == '80081':
-    return 'Amps', 0.000001, '%9.7f' # uA, 0.1uA resolution
-  if Units == '08081':
-    return 'Amps', 0.001, '%6.4f' # mA, 0.1mA resolution
-  if Units == '00081':
-    return 'Amps', 1.0, '%5.3f' # A, 1mA resolution
-  raise Exception('Units %s' % (Units))
+#           1.0  3.1    5.3    6.4
+#  volts        00401  00041  08041
+#   ohms  20401
+#   amps
+
+
+'''
+UnitMap = {
+   {'08041': {'unit': 'VDC', 'max': '400.0', 'e': -3}}, # xxx.x mV
+   {'00041': {'unit': 'VDC', 'max': '4.000', 'e':  0}}, # x.xxx  V
+   {'00041': {'unit': 'VDC', 'max': '40.00', 'e':  0}}, # xx.xx  V
+   {'00041': {'unit': 'VDC', 'max': '400.0', 'e':  0}}, # xxx.x  V
+   {'00041': {'unit': 'VDC', 'max': '1000.', 'e':  0}}, # xxxx.  V
+
+   {'00401': {'unit': 'OHM', 'max': '400.0', 'e':  0}}, # xxx.x  R
+   {'20401': {'unit': 'OHM', 'max': '4.000', 'e':  3}}, # x.xxx KR
+   {'20401': {'unit': 'OHM', 'max': '40.00', 'e':  3}}, # xx.xx KR
+   {'20401': {'unit': 'OHM', 'max': '400.0', 'e':  3}}, # xxx.x KR
+   {'02401': {'unit': 'OHM', 'max': '4.000', 'e':  6}}, # xxxx. MR
+   {'02401': {'unit': 'OHM', 'max': '40.00', 'e':  6}}, # xxx.x MR
+
+   {'80081': {'unit': 'ADC', 'max': '400.0', 'e': -6}}, # xxx.x uA
+   {'80081': {'unit': 'ADC', 'max': '4000.', 'e': -6}}, # xxxx. uA
+   {'08081': {'unit': 'ADC', 'max': '40.00', 'e': -3}}, # xx.xx mA
+   {'08081': {'unit': 'ADC', 'max': '400.0', 'e': -3}}, # xxx.x mA
+   {'00081': {'unit': 'ADC', 'max': '4.000', 'e':  0}}, # x.xxx  A
+   {'00081': {'unit': 'ADC', 'max': '20.00', 'e':  0}}, # xx.xx  A
+}
+'''
+
+#   #####
+#   ||+++---- 041=Volt, 401=Ohm, 081=Amp
+#   ++------- 02=M, 08=m, 20=K, 80=u
+
+def DecodeFlags(Flags):
+  if   Flags[2:] == '041':
+    Unit = 'Volt'
+    Format = '%5.3f'
+  elif Flags[2:] == '401':
+    Unit = 'Ohm'
+    Format = '%3.1f'
+  elif Flags[2:] == '081':
+    Unit = 'Amp'
+    Format = '%5.3f'
+  else:
+    raise Exception('Unit [%s]' % (Flags[2:]))
+  if   Flags [:2] == '00':
+    Exponent = 0
+  elif Flags [:2] == '02': # M
+    Exponent = 6
+    Format = '%1.0f'
+  elif Flags [:2] == '20': # K
+    Exponent = 3
+    Format = '%1.0f'
+  elif Flags [:2] == '08': # m
+    Exponent = -3
+    Format = '%7.5f'
+  elif Flags [:2] == '80': # u
+    Exponent = -6
+    Format = '%9.7f'
+  else:
+    raise Exception('Exponent [%s]' % (Flags[:2]))
+  return Unit, Exponent, Format
 
 def DumpBuffer(Buffer):
   for B in Buffer:
@@ -252,16 +297,21 @@ def DecodeBuffer(Buffer):
     if Index != Check:
       raise Exception('Bad Check Nibble')
   Image = ''
-  Units = ''
+  Flags = ''
+  AcDc = ''
   for Index, Data in enumerate(Buffer):
     Nibble = Data % 16
     if Index == 0:
-      if Nibble == 7:
-        pass # Image += 'Volts '
+      if Nibble == 1:
+        pass # Image += 'diode'
       elif Nibble == 3:
-        pass # Image += 'Ohms '
+        pass # Image += 'Ohms'
+      elif Nibble == 7:
+        AcDc = 'DC '
+      elif Nibble == 11: # 'b'
+        AcDc = 'AC '
       else:
-        raise Exception('Bad Scale Nibble $%02x' % (Data))
+        raise Exception('Bad Class Nibble [%x]' % (Nibble))
     elif Index in [1,3,5,7]:
       if Nibble & 0x08:
         if Index == 1:
@@ -274,10 +324,11 @@ def DecodeBuffer(Buffer):
       Digit += Nibble
       Image += DecodeDigit(Digit)
     else:
-      Units += '%x' % (Nibble)
-  Units, Scale, Format = DecodeUnits(Units)
-  Value = float(RemoveLeadingZeros(Image)) * Scale
-  return Value, Units, Format
+      Flags += '%x' % (Nibble)
+  Unit, Exponent, Format = DecodeFlags(Flags)
+  Value = float(RemoveLeadingZeros(Image)) * pow(10,Exponent)
+  Unit = AcDc + Unit
+  return Value, Unit, Format
 
 print('  waiting for data')
 Time0 = time.time()
@@ -291,19 +342,20 @@ while True:
     if TimeX > 0.100:
       if Buffer:
         try:
-          Value, Units, Format = DecodeBuffer(Buffer)
+          Value, Unit, Format = DecodeBuffer(Buffer)
           if not OutputSet:
             OutputTime = time.time()
-            OutputUnits = Units
+            OutputUnit = Unit
             print('  recording data')
             print()
           ValueTime = time.time() - OutputTime
-          OutputSet.append({'time': '%5.3f' % (ValueTime), 'values': [Format % (Value)]})
-          print('  %04d  %05.1f  %15.7f %s  \r' % (len(OutputSet), ValueTime, Value, Units), end='')
+          if OutputUnit == Unit:
+            OutputSet.append({'time': '%5.3f' % (ValueTime), 'values': [Format % (Value)]})
+          print('  %04d  %05.1f  %15.7f %s    \r' % (len(OutputSet), ValueTime, Value, Unit), end='')
         except KeyboardInterrupt:
           raise
         except:
-          # DumpBuffer(Buffer)
+          #DumpBuffer(Buffer)
           pass
       Buffer = b''
     Buffer += Data
@@ -314,13 +366,13 @@ while True:
 
 with open(FileName, 'w') as f:
   DataSet = {
-    'channels': [OutputUnits],
+    'channels': [OutputUnit],
     'data'    :  OutputSet
   }
   f.write(json.dumps(DataSet, indent=2))
 
 print()
-print('done - wrote %d sample sets to %s' % (len(OutputSet), FileName))
+print("done - wrote %d sample sets to file: '%s'" % (len(OutputSet), FileName))
 print()
 
 #==============================================================================
