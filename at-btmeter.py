@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-btmeter.py'
-VERSION = '2.102.171'
+VERSION = '2.102.181'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json, serial
@@ -26,7 +26,7 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-i=1/2/3/4...] [-f=filename[.dat]]
+    %s [-h] [-i=1/2/3/4...] [-f=filename[.json]]
 
 where:
 
@@ -58,49 +58,6 @@ def ShowErrorToken(Token):
   ShowError('could not be parsed because of this token: %s' % (Token))
 
 #==============================================================================
-# validate an integer or float command or throw an error.  also set a globel
-# as a side-effect.
-#==============================================================================
-
-Integer = 0
-
-def ValidInteger(Command, Length):
-  global Integer
-  if len(Command) > Length:
-    try:
-      Integer = int(Command[Length:])
-    except:
-      ShowErrorToken(Command)
-  else:
-    ShowErrorToken(Command)
-  return Command
-
-Float = 0.0
-
-def ValidFloat(Command, Length):
-  global Float
-  if len(Command) > Length:
-    try:
-      Float = float(Command[Length:])
-    except:
-      ShowErrorToken(Command)
-  else:
-    ShowErrorToken(Command)
-  return Command
-
-#==============================================================================
-# helper for option recognition
-#==============================================================================
-
-def StartsWithAny(Option, Prefixes, Length):
-  if len(Option) > Length:
-    if Option[:Length] in Prefixes:
-      return True
-  else:
-    ShowErrorToken(Option)
-  return False
-
-#==============================================================================
 # parse arguments
 #==============================================================================
 
@@ -126,7 +83,7 @@ for arg in sys.argv[1:]:
           if len(FileName) < 1:
             ShowErrorToken(arg)
           if not '.' in FileName:
-            FileName += '.dat'
+            FileName += '.json'
         except:
           ShowErrorToken(arg)
       else:
