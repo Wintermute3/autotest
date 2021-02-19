@@ -1,0 +1,23 @@
+{
+  "x-axis": {
+    "label": "time"
+  },
+  "channels": [
+    {
+      "name": "DC Volt",
+      "label": "volts 1",
+      "tare": 0.0,
+      "scale": 100.0,
+      "offset": 0.0,
+      "color": "red"
+    },
+    {
+      "name": "DC Volt",
+      "label": "volts 2",
+      "tare": 0.0,
+      "scale": -100.0,
+      "offset": 1.0,
+      "color": "blue"
+    }
+  ]
+}

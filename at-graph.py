@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-graph.py'
-VERSION = '2.102.171'
+VERSION = '2.102.181'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -43,7 +43,8 @@ except:
 # show usage help
 #==============================================================================
 
-FileName = '.%s.json' % (PROGRAM.split('.')[0])
+DataSetFileName = 'at-dataset.json'
+MappingFileName = 'at-mapping.json'
 
 def ShowHelp():
   HelpText = '''\
@@ -56,10 +57,10 @@ usage:
 where:
 
     -h . . . . . . this help text
-    -i=# . . . . . specify multimeter index (default 1)
-    -f=xxxx  . . . name of output file (default '%s')
+    -d=xxxx  . . . name of dataset file (default '%s')
+    -m=xxxx  . . . name of mapping file (default '%s')
 '''
-  print(HelpText % (sys.argv[0], FileName))
+  print(HelpText % (sys.argv[0], DataSetFileName, MappingFileName))
   os._exit(1)
 
 #==============================================================================
@@ -90,13 +91,22 @@ for arg in sys.argv[1:]:
   if arg.startswith('-'):
     if arg == '-h':
       ShowHelp()
-    elif arg.startswith('-f='):
+    elif arg.startswith('-d='):
       try:
-        FileName = arg[3:]
-        if len(FileName) < 1:
+        DataSetFileName = arg[3:]
+        if len(DataSetFileName) < 1:
           ShowErrorToken(arg)
-        if not '.' in FileName:
-          FileName += '.json'
+        if not '.' in DataSetFileName:
+          DataSetFileName += '.json'
+      except:
+        ShowErrorToken(arg)
+    elif arg.startswith('-m='):
+      try:
+        MappingFileName = arg[3:]
+        if len(MappingFileName) < 1:
+          ShowErrorToken(arg)
+        if not '.' in MappingFileName:
+          MappingFileName += '.json'
       except:
         ShowErrorToken(arg)
     else:
@@ -109,19 +119,41 @@ for arg in sys.argv[1:]:
 #==============================================================================
 
 try:
-  DataSet = json.load(open(FileName))
-  X = []
-  Y = []
-  for Item in DataSet['data']:
-    X.append(Item['time'])
-    Y.append(Item['values'][0])
-  print('  graphing %d values' % (len(X)))
-  plt.plot(X, Y)
-  plt.xlabel('time')
-  plt.ylabel(DataSet['channels'][0])
-  plt.show()
+  DataSet = json.load(open(DataSetFileName))
+  try:
+    Mapping = json.load(open(MappingFileName))
+    for Channel in Mapping['channels']:
+      if not Channel['name'] in DataSet['channels']:
+        print("*** mapping channel '%s' not found in dataset!" % (Channel['name']))
+        os._exit(1)
+    try:
+      X = []
+      for Item in DataSet['data']:
+        X.append(Item['time'])
+      print('  graphing %d values' % (len(X)))
+      plt.xlabel(Mapping['x-axis']['label'])
+      for MappingChannel in Mapping['channels']:
+        for Index, DataChannel in enumerate(DataSet['channels']):
+          if DataChannel == MappingChannel['name']:
+            Tare   = MappingChannel['tare'  ]
+            Scale  = MappingChannel['scale' ]
+            Offset = MappingChannel['offset']
+            Y = []
+            for Item in DataSet['data']:
+              Value = float(Item['values'][Index])
+              Y.append(((Value - Tare) * Scale) + Offset)
+            plt.plot(X, Y)
+            plt.ylabel(DataSet['channels'][Index])
+      print()
+      print('  dataset: %s' % (DataSetFileName))
+      print('  mapping: %s' % (MappingFileName))
+      plt.show()
+    except:
+      print("*** error rendering plot!")
+  except:
+    print("*** unable to open mapping file '%s' for input!" % (MappingFileName))
 except:
-  print("*** unable to open file '%s' for input!" % (FileName))
+  print("*** unable to open dataset file '%s' for input!" % (DataSetFileName))
 print()
 
 #==============================================================================
