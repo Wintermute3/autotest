@@ -135,6 +135,8 @@ try:
       plt.title(Mapping['title'])
       axis1.set_xlabel(Mapping['x-axis']['label'])
       axis2 = axis1.twinx()
+      Lines = []
+      Labels = []
       for MappingChannel in Mapping['channels']:
         for Index, DataChannel in enumerate(DataSet['channels']):
           if DataChannel == MappingChannel['name']:
@@ -145,19 +147,22 @@ try:
             for Item in DataSet['data']:
               Value = float(Item['values'][Index])
               Y.append(((Value - Tare) * Scale) + Offset)
+            Label = MappingChannel['label']['name']
+            Color = MappingChannel['color']
             if MappingChannel['label']['side'] == 'left':
-              axis1.plot(X, Y, color=MappingChannel['color'])
-              axis1.set_ylabel(MappingChannel['label']['name'])
+              Line, = axis1.plot(X, Y, color=Color, label=Label)
             else:
-              axis2.plot(X, Y, color=MappingChannel['color'])
-              axis2.set_ylabel(MappingChannel['label']['name'])
+              Line, = axis2.plot(X, Y, color=Color, label=Label)
+            Lines.append(Line)
+            Labels.append(Label)
       fig.tight_layout()
       fig.canvas.set_window_title("%s %s" % (PROGRAM, VERSION))
       print()
       print('  dataset: %s' % (DataSetFileName))
       print('  mapping: %s' % (MappingFileName))
       xmin, xmax = axis1.get_xlim()
-      axis1.set_xticks(np.round(np.linspace(xmin, xmax, 9), 2))
+      axis1.set_xticks(np.round(np.linspace(xmin, xmax, Mapping['x-axis']['ticks']), 2))
+      axis1.legend(Lines, Labels, loc=Mapping['legend']['position'])
       plt.show()
     except:
       print("*** error rendering plot!")

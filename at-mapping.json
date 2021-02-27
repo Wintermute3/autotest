@@ -1,7 +1,11 @@
 {
   "title": "volts and inverse",
+  "legend": {
+    "position": "center right"
+  },
   "x-axis": {
-    "label": "time"
+    "label": "time",
+    "ticks": 11
   },
   "channels": [
     {
