@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-graph.py'
-VERSION = '2.102.181'
+VERSION = '2.102.261'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -29,7 +29,7 @@ def ImportError(Library):
   os._exit(1)
 
 try:
-  import numpy
+  import numpy as np
 except:
   ImportError('numpy')
 
@@ -131,7 +131,10 @@ try:
       for Item in DataSet['data']:
         X.append(Item['time'])
       print('  graphing %d values' % (len(X)))
-      plt.xlabel(Mapping['x-axis']['label'])
+      fig, axis1 = plt.subplots()
+      plt.title(Mapping['title'])
+      axis1.set_xlabel(Mapping['x-axis']['label'])
+      axis2 = axis1.twinx()
       for MappingChannel in Mapping['channels']:
         for Index, DataChannel in enumerate(DataSet['channels']):
           if DataChannel == MappingChannel['name']:
@@ -142,11 +145,19 @@ try:
             for Item in DataSet['data']:
               Value = float(Item['values'][Index])
               Y.append(((Value - Tare) * Scale) + Offset)
-            plt.plot(X, Y)
-            plt.ylabel(DataSet['channels'][Index])
+            if MappingChannel['label']['side'] == 'left':
+              axis1.plot(X, Y, color=MappingChannel['color'])
+              axis1.set_ylabel(MappingChannel['label']['name'])
+            else:
+              axis2.plot(X, Y, color=MappingChannel['color'])
+              axis2.set_ylabel(MappingChannel['label']['name'])
+      fig.tight_layout()
+      fig.canvas.set_window_title("%s %s" % (PROGRAM, VERSION))
       print()
       print('  dataset: %s' % (DataSetFileName))
       print('  mapping: %s' % (MappingFileName))
+      xmin, xmax = axis1.get_xlim()
+      axis1.set_xticks(np.round(np.linspace(xmin, xmax, 9), 2))
       plt.show()
     except:
       print("*** error rendering plot!")

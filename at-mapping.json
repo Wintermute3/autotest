@@ -1,11 +1,15 @@
 {
+  "title": "volts and inverse",
   "x-axis": {
     "label": "time"
   },
   "channels": [
     {
       "name": "DC Volt",
-      "label": "volts 1",
+      "label": {
+        "name": "volts 1",
+        "side": "left"
+      },
       "tare": 0.0,
       "scale": 100.0,
       "offset": 0.0,
@@ -13,7 +17,10 @@
     },
     {
       "name": "DC Volt",
-      "label": "volts 2",
+      "label": {
+        "name": "volts 2",
+        "side": "right"
+      },
       "tare": 0.0,
       "scale": -100.0,
       "offset": 1.0,
