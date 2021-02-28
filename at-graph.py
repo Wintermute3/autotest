@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-graph.py'
-VERSION = '2.102.261'
+VERSION = '2.102.271'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -132,27 +132,44 @@ try:
         X.append(Item['time'])
       print('  graphing %d values' % (len(X)))
       fig, axis1 = plt.subplots()
-      plt.title(Mapping['title'])
-      axis1.set_xlabel(Mapping['x-axis']['label'])
-      axis2 = axis1.twinx()
+      if 'title' in Mapping:
+        plt.title(Mapping['title'])
+      if 'x-axis' in Mapping and 'label' in Mapping['x-axis']:
+        axis1.set_xlabel(Mapping['x-axis']['label'])
+      axis2 = None
       Lines = []
       Labels = []
-      for MappingChannel in Mapping['channels']:
+      for ChannelIndex, MappingChannel in enumerate(Mapping['channels']):
         for Index, DataChannel in enumerate(DataSet['channels']):
           if DataChannel == MappingChannel['name']:
-            Tare   = MappingChannel['tare'  ]
-            Scale  = MappingChannel['scale' ]
-            Offset = MappingChannel['offset']
+            Tare = 0.0
+            Scale = 1.0
+            Offset = 0.0
+            if 'tare' in MappingChannel:
+              Tare   = MappingChannel['tare'  ]
+            if 'scale' in MappingChannel:
+              Scale  = MappingChannel['scale' ]
+            if 'offset' in MappingChannel:
+              Offset = MappingChannel['offset']
             Y = []
             for Item in DataSet['data']:
               Value = float(Item['values'][Index])
               Y.append(((Value - Tare) * Scale) + Offset)
-            Label = MappingChannel['label']['name']
-            Color = MappingChannel['color']
-            if MappingChannel['label']['side'] == 'left':
-              Line, = axis1.plot(X, Y, color=Color, label=Label)
+            if 'label' in MappingChannel and 'name' in MappingChannel['label']:
+              Label = MappingChannel['label']['name']
             else:
+              Label = 'Channel %d' % (ChannelIndex)
+            Color=None
+            if 'color' in MappingChannel:
+              Color = MappingChannel['color']
+            if 'label' in MappingChannel and 'side' in MappingChannel['label'] and MappingChannel['label']['side'] == 'right':
+              if not axis2:
+                axis2 = axis1.twinx()
               Line, = axis2.plot(X, Y, color=Color, label=Label)
+              axis2.set_ylabel(Label)
+            else:
+              Line, = axis1.plot(X, Y, color=Color, label=Label)
+              axis1.set_ylabel(Label)
             Lines.append(Line)
             Labels.append(Label)
       fig.tight_layout()
@@ -161,9 +178,19 @@ try:
       print('  dataset: %s' % (DataSetFileName))
       print('  mapping: %s' % (MappingFileName))
       xmin, xmax = axis1.get_xlim()
-      axis1.set_xticks(np.round(np.linspace(xmin, xmax, Mapping['x-axis']['ticks']), 2))
-      axis1.legend(Lines, Labels, loc=Mapping['legend']['position'])
-      plt.show()
+      if 'x-axis' in Mapping and 'ticks' in Mapping['x-axis']:
+        axis1.set_xticks(np.round(np.linspace(xmin, xmax, Mapping['x-axis']['ticks']), 2))
+      Location = 'center right'
+      if 'legend' in Mapping and 'position' in Mapping['legend']:
+        Location = Mapping['legend']['position']
+      axis1.legend(Lines, Labels, loc=Location)
+      if 'view' in Mapping:
+        if Mapping['view']:
+          plt.show()
+      else:
+        plt.show()
+      if 'outfile' in Mapping:
+        fig.savefig(Mapping['outfile'])
     except:
       print("*** error rendering plot!")
   except:

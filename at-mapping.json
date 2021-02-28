@@ -1,5 +1,7 @@
 {
   "title": "volts and inverse",
+  "view": true,
+  "outfile": "test1.png",
   "legend": {
     "position": "center right"
   },
