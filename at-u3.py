@@ -36,6 +36,7 @@ except:
   cd ..
   git clone git://github.com/labjack/LabJackPython.git
   cd LabJackPython/
+  sudo apt install -y python3-setuptools
   sudo python3 setup.py install
 '''))
   os._exit(1)
