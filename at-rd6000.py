@@ -7,7 +7,7 @@
 #==============================================================================
 
 PROGRAM = 'at-rd6000.py'
-VERSION = '2.102.151'
+VERSION = '2.103.061'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -246,7 +246,7 @@ class RD6006:
 # show usage help
 #==============================================================================
 
-FileName = '.%s.json' % (PROGRAM.split('.')[0])
+OutputFileName = None
 
 def ShowHelp():
   HelpText = '''\
@@ -255,13 +255,13 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-i=1/2/3/4...] [-f=filename[.json]] command {command {command...}}
+    %s [-h] [-i=1/2/3/4...] [-o=filename[.json]] command {command {command...}}
 
 where:
 
     -h . . . . . . this help text
     -i=# . . . . . specify power supply index (default 1)
-    -f=xxxx  . . . name of output file (default '%s')
+    -o=xxxx  . . . name of output file (optional)
     command  . . . command, as listed below (repeat as desired)
 
 if more than one power supply, select the desired one by supplying an integer
@@ -301,7 +301,7 @@ of 500mv at a rate of one step per second, then turns the supply off:
 
 note that groups can be nested, allowing for some complex sequences.
 '''
-  print(HelpText % (sys.argv[0], FileName))
+  print(HelpText % (sys.argv[0]))
   os._exit(1)
 
 #==============================================================================
@@ -506,13 +506,13 @@ for arg in sys.argv[1:]:
           SupplyIndex = int(arg[3:])
         except:
           ShowErrorToken(arg)
-      elif arg.startswith('-f='):
+      elif arg.startswith('-o='):
         try:
-          FileName = arg[3:]
-          if len(FileName) < 1:
+          OutputFileName = arg[3:]
+          if len(OutputFileName) < 1:
             ShowErrorToken(arg)
-          if not '.' in FileName:
-            FileName += '.json'
+          if not '.' in OutputFileName:
+            OutputFileName += '.json'
         except:
           ShowErrorToken(arg)
       else:
@@ -604,6 +604,13 @@ except serial.serialutil.SerialException:
   print()
   print('  sudo usermod -a -G dialout $USER')
   print()
+
+#sudoedit /etc/udev/rules.d/50-myusb.rules
+#Save this text:
+
+#KERNEL=="ttyUSB[0-9]*",MODE="0666"
+#KERNEL=="ttyACM[0-9]*",MODE="0666"
+
   print('*** then log off and back on to make the change effective, and try again.')
   print()
   os._exit(1)
@@ -616,15 +623,17 @@ if Tokens:
 else:
   print('no commands, nothing to do (ask for help with -h)')
 
-with open(FileName, 'w') as f:
-  DataSet = {
-    'channels': ['volts','amps'],
-    'data'    : OutputSet
-  }
-  f.write(json.dumps(DataSet, indent=2))
-
 print()
-print('done - wrote %d sample sets to %s' % (len(OutputSet), FileName))
+if OutputFileName:
+  with open(OutputFileName, 'w') as f:
+    DataSet = {
+      'channels': ['volts','amps'],
+      'data'    : OutputSet
+    }
+    f.write(json.dumps(DataSet, indent=2))
+  print('done - wrote %d sample sets to %s' % (len(OutputSet), OutputFileName))
+else:
+  print('done')
 print()
 
 #==============================================================================

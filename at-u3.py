@@ -49,7 +49,7 @@ InputCount =   4
 LoopCount  =  10
 LoopDelay  = 100
 
-ConfigFileName = '%s-config.json' % (PROGRAM.split('.')[0])
+ConfigFileName = None
 OutputFileName = '%s-output.json' % (PROGRAM.split('.')[0])
 
 #==============================================================================
@@ -95,11 +95,11 @@ where:
     -n=# . . . . . number of inputs to scan (default %d, range 1..12)
     -t=# . . . . . time between sample loops (milliseconds, default %d)
     -l=# . . . . . number of sample loops (default %d)
-    -c=xxxx  . . . name of config file (default '%s', optional)
+    -c=xxxx  . . . name of config file (optional)
     -o=xxxx  . . . name of output file (default '%s')
 '''
   print(HelpText % (sys.argv[0], 
-    InputCount, LoopDelay, LoopCount, ConfigFileName, OutputFileName))
+    InputCount, LoopDelay, LoopCount, OutputFileName))
   os._exit(1)
 
 #==============================================================================
@@ -163,52 +163,54 @@ ChannelName = []
 ChannelTare = []
 ChannelScale = []
 ChannelOffset = []
-try:
-  Config = json.load(open(ConfigFileName))
-  if 'channels' in Config:
-    try:
-      for Input, Channel in enumerate(Config['channels']):
-        if 'name' in Channel:
-          ChannelName.append(Channel['name'])
-        else:
-          ChannelName.append('input-%d' % (Input))
-        if 'tare' in Channel:
-          ChannelTare.append(Channel['tare'])
-        else:
-          ChannelTare.append(0.0)
-        if 'scale' in Channel:
-          ChannelScale.append(Channel['scale'])
-        else:
-          ChannelScale.append(1.0)
-        if 'offset' in Channel:
-          ChannelOffset.append(Channel['offset'])
-        else:
-          ChannelOffset.append(0.0)
-      InputCount = len(Config['channels'])
-    except:
-      ShowErrorConfig('channels')
-  if 'outputfile' in Config:
-    OutputFileName = Config['outputfile']
-  if 'loop' in Config:
-    try:
-      if 'delay' in Config['loop']:
-        LoopDelay = Config['loop']['delay']
-    except:
-      ShowErrorConfig('loop.delay')
-    try:
-      if 'count' in Config['loop']:
-        LoopCount = Config['loop']['count']
-    except:
-      ShowErrorConfig('loop.count')
-except:
-  ChannelName = []
+
+if ConfigFileName:
+  try:
+    Config = json.load(open(ConfigFileName))
+    if 'channels' in Config:
+      try:
+        for Input, Channel in enumerate(Config['channels']):
+          if 'name' in Channel:
+            ChannelName.append(Channel['name'])
+          else:
+            ChannelName.append('input-%d' % (Input))
+          if 'tare' in Channel:
+            ChannelTare.append(Channel['tare'])
+          else:
+            ChannelTare.append(0.0)
+          if 'scale' in Channel:
+            ChannelScale.append(Channel['scale'])
+          else:
+            ChannelScale.append(1.0)
+          if 'offset' in Channel:
+            ChannelOffset.append(Channel['offset'])
+          else:
+            ChannelOffset.append(0.0)
+        InputCount = len(Config['channels'])
+      except:
+        ShowErrorConfig('channels')
+    if 'outputfile' in Config:
+      OutputFileName = Config['outputfile']
+    if 'loop' in Config:
+      try:
+        if 'delay' in Config['loop']:
+          LoopDelay = Config['loop']['delay']
+      except:
+        ShowErrorConfig('loop.delay')
+      try:
+        if 'count' in Config['loop']:
+          LoopCount = Config['loop']['count']
+      except:
+        ShowErrorConfig('loop.count')
+  except:
+    ShowError("config file '%s' not found" % (ConfigFileName))
 
 if not ChannelName:
   for Input in range(0, InputCount):
-    ChannelName.append('input-%d' % (Input))
-    ChannelTare  [Input] = 0.0
-    ChannelScale [Input] = 1.0
-    ChannelOffset[Input] = 0.0
+    ChannelName  .append('input-%d' % (Input))
+    ChannelTare  .append(0.0)
+    ChannelScale .append(1.0)
+    ChannelOffset.append(0.0)
 
 #==============================================================================
 # show the active option values

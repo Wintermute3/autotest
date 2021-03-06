@@ -1,0 +1,16 @@
+{
+  "outputfile": "u3-output.json",
+  "loop": {
+    "delay": 100,
+    "count": 250
+  },
+  "channels": [
+    { "name":   "pv.v", "tare": 0.0, "scale": 1.0, "offset": 0.0 },
+    { "name":  "bat.v", "tare": 0.0, "scale": 1.0, "offset": 0.0 },
+    { "name": "load.v", "tare": 0.0, "scale": 1.0, "offset": 0.0 },
+    { "name":  "rd2.v", "tare": 0.0, "scale": 1.0, "offset": 0.0 },
+    { "name":   "pv.i", "tare": 0.0, "scale": 1.0, "offset": 0.0 },
+    { "name":  "bat.i", "tare": 0.0, "scale": 1.0, "offset": 0.0 },
+    { "name": "load.i", "tare": 0.0, "scale": 1.0, "offset": 0.0 }
+  ]
+}
