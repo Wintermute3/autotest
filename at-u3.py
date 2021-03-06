@@ -9,7 +9,7 @@
 #==============================================================================
 
 PROGRAM = 'at-u3.py'
-VERSION = '2.102.151'
+VERSION = '2.103.061'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -29,6 +29,7 @@ except:
 *** the python3 library 'u3' is not installed.  to fix this sad state of
 *** affairs, run the following commands and try again:
 
+  sudo apt-get install -y libusb-1.0-0-dev
   git clone git://github.com/labjack/exodriver.git
   cd exodriver/
   sudo ./install.sh
