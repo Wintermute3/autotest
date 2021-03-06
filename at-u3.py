@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# todo: revoke dialout group membership and test failure mode reporting
-
 #==============================================================================
 # perform a sequence of operations on an rd6006 voltage/current source and
 # save the resulting dataset to a file.  the rd6006 class also works
@@ -44,7 +42,18 @@ except:
   os._exit(1)
 
 #==============================================================================
-# parse error
+# default values
+#==============================================================================
+
+InputCount =   4
+LoopCount  =  10
+LoopDelay  = 100
+
+ConfigFileName = '%s-config.json' % (PROGRAM.split('.')[0])
+OutputFileName = '%s-output.json' % (PROGRAM.split('.')[0])
+
+#==============================================================================
+# report errors
 #==============================================================================
 
 def ShowError(Message=None):
@@ -63,14 +72,8 @@ def ShowError(Message=None):
 def ShowErrorToken(Token):
   ShowError('could not be parsed because of this token: %s' % (Token))
 
-#==============================================================================
-# default values
-#==============================================================================
-
-InputCount =   4
-LoopCount  =  10
-LoopDelay  = 100
-FileName   = '.%s.json' % (PROGRAM.split('.')[0])
+def ShowErrorConfig(Key):
+  ShowError("the config file '%s' has an an invalid '%s' section" % (ConfigFileName, Key))
 
 #==============================================================================
 # show usage help
@@ -84,7 +87,7 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-n=1..12] [-t=###] [-l=###] [-f=filename[.json]]
+    %s [-h] [-n=1..12] [-t=###] [-l=###] [-c=filename[.json]] [-o=filename[.json]]
 
 where:
 
@@ -92,9 +95,11 @@ where:
     -n=# . . . . . number of inputs to scan (default %d, range 1..12)
     -t=# . . . . . time between sample loops (milliseconds, default %d)
     -l=# . . . . . number of sample loops (default %d)
-    -f=xxxx  . . . name of output file (default '%s')
+    -c=xxxx  . . . name of config file (default '%s', optional)
+    -o=xxxx  . . . name of output file (default '%s')
 '''
-  print(HelpText % (sys.argv[0], InputCount, LoopDelay, LoopCount, FileName))
+  print(HelpText % (sys.argv[0], 
+    InputCount, LoopDelay, LoopCount, ConfigFileName, OutputFileName))
   os._exit(1)
 
 #==============================================================================
@@ -127,13 +132,22 @@ for arg in sys.argv[1:]:
           ShowErrorToken(arg)
       except:
         ShowErrorToken(arg)
-    elif arg.startswith('-f='):
+    elif arg.startswith('-c='):
       try:
-        FileName = arg[3:]
-        if len(FileName) < 1:
+        ConfigFileName = arg[3:]
+        if len(ConfigFileName) < 1:
           ShowErrorToken(arg)
-        if not '.' in FileName:
-          FileName += '.json'
+        if not '.' in ConfigFileName:
+          ConfigFileName += '.json'
+      except:
+        ShowErrorToken(arg)
+    elif arg.startswith('-o='):
+      try:
+        OutputFileName = arg[3:]
+        if len(OutputFileName) < 1:
+          ShowErrorToken(arg)
+        if not '.' in OutputFileName:
+          OutputFileName += '.json'
       except:
         ShowErrorToken(arg)
     else:
@@ -142,13 +156,74 @@ for arg in sys.argv[1:]:
     ShowErrorToken(arg)
 
 #==============================================================================
+# load configuration from file if available
+#==============================================================================
+
+ChannelName = []
+ChannelTare = []
+ChannelScale = []
+ChannelOffset = []
+try:
+  Config = json.load(open(ConfigFileName))
+  if 'channels' in Config:
+    try:
+      for Input, Channel in enumerate(Config['channels']):
+        if 'name' in Channel:
+          ChannelName.append(Channel['name'])
+        else:
+          ChannelName.append('input-%d' % (Input))
+        if 'tare' in Channel:
+          ChannelTare.append(Channel['tare'])
+        else:
+          ChannelTare.append(0.0)
+        if 'scale' in Channel:
+          ChannelScale.append(Channel['scale'])
+        else:
+          ChannelScale.append(1.0)
+        if 'offset' in Channel:
+          ChannelOffset.append(Channel['offset'])
+        else:
+          ChannelOffset.append(0.0)
+      InputCount = len(Config['channels'])
+    except:
+      ShowErrorConfig('channels')
+  if 'outputfile' in Config:
+    OutputFileName = Config['outputfile']
+  if 'loop' in Config:
+    try:
+      if 'delay' in Config['loop']:
+        LoopDelay = Config['loop']['delay']
+    except:
+      ShowErrorConfig('loop.delay')
+    try:
+      if 'count' in Config['loop']:
+        LoopCount = Config['loop']['count']
+    except:
+      ShowErrorConfig('loop.count')
+except:
+  ChannelName = []
+
+if not ChannelName:
+  for Input in range(0, InputCount):
+    ChannelName.append('input-%d' % (Input))
+    ChannelTare  [Input] = 0.0
+    ChannelScale [Input] = 1.0
+    ChannelOffset[Input] = 0.0
+
+#==============================================================================
 # show the active option values
 #==============================================================================
 
-print('  input count  . . . %d'              % (InputCount))
-print('  loop delay . . . . %d milliseconds' % (LoopDelay))
-print('  loop count . . . . %d'              % (LoopCount))
-print('  filename . . . . . %s'              % (FileName))
+if ConfigFileName:
+  print('  config file . . . . . %s'            % (ConfigFileName))
+  print('  channel names . . . . %s'            % (ChannelName   ))
+  print('          tares . . . . %s'            % (ChannelTare   ))
+  print('          scales  . . . %s'            % (ChannelScale  ))
+  print('          offsets . . . %s'            % (ChannelOffset ))
+print('  input count . . . . . %d'              % (InputCount    ))
+print('  loop delay  . . . . . %d milliseconds' % (LoopDelay     ))
+print('  loop count  . . . . . %d'              % (LoopCount     ))
+print('  output file . . . . . %s'              % (OutputFileName))
 
 #==============================================================================
 # do the actual sampling
@@ -189,7 +264,11 @@ try:
           lowVoltage = False # use high voltage calibration
         else:
           lowVoltage = True
-        InputValues[Input] = LabJack.binaryToCalibratedAnalogVoltage(results[2 + Input], isLowVoltage=lowVoltage, isSingleEnded=True)
+        Value = LabJack.binaryToCalibratedAnalogVoltage(results[2 + Input], isLowVoltage=lowVoltage, isSingleEnded=True)
+        Value -= ChannelTare  [Input]
+        Value *= ChannelScale [Input]
+        Value += ChannelOffset[Input]        
+        InputValues[Input] = Value        
       Time = time.time() - Time0
       InputSet.append({'time': Time, 'values': InputValues})
       time.sleep(LoopDelay)
@@ -212,10 +291,10 @@ except:
   print()
   os._exit(1)
 
-with open(FileName, 'w') as f:
+with open(OutputFileName, 'w') as f:
   Channels = []
   for Input in range(InputCount):
-    Channels.append('input-%d' % Input)
+    Channels.append(ChannelName[Input])
   DataSet = {
     'channels': Channels,
     'data'    : InputSet
@@ -223,7 +302,7 @@ with open(FileName, 'w') as f:
   f.write(json.dumps(DataSet, indent=2))
 
 print()
-print('done - wrote %d sample sets to %s' % (len(InputSet), FileName))
+print('done - wrote %d sample sets to %s' % (len(InputSet), OutputFileName))
 print()
 
 #==============================================================================
