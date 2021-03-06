@@ -38,6 +38,8 @@ except:
   cd LabJackPython/
   sudo apt install -y python3-setuptools
   sudo python3 setup.py install
+
+ note: you may have to reboot before the new drivers will see the u3 pod.
 '''))
   os._exit(1)
 
