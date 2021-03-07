@@ -52,13 +52,22 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-f=filename[.json]]
+    %s [-h] [-d=filename[.json]] [-m=filename[.json]] [-c#[#]]
 
 where:
 
     -h . . . . . . this help text
     -d=xxxx  . . . name of dataset file (default '%s')
     -m=xxxx  . . . name of mapping file (default '%s')
+    -c=##  . . . . channel selector(s) (optional)
+
+channel selectors, if specified, are a list of digits which identify the
+indexes of the data channels to graph.  for instance:
+
+    -c42
+
+selects channels 4 and 2, in that order, with the first becoming the left
+axis and the second becoming the right axis.
 '''
   print(HelpText % (sys.argv[0], DataSetFileName, MappingFileName))
   os._exit(1)
