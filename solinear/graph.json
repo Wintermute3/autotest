@@ -1,9 +1,7 @@
 {
-  "title": "solinear",
   "view": true,
-  "outfile": "graph.png",
   "legend": {
-    "position": "center right"
+    "position": "upper right"
   },
   "x-axis": {
     "label": "time",

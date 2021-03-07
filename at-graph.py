@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-graph.py'
-VERSION = '2.102.271'
+VERSION = '2.103.071'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -44,12 +44,15 @@ except:
 #==============================================================================
 
 ChannelFilter = None
+TitleOverride = None
 
 DefaultDataSetFileName = 'at-dataset.json'
 DefaultMappingFileName = 'at-mapping.json'
+DefaultPngFileName     = 'at-graph.png'
 
 DataSetFileName = DefaultDataSetFileName
 MappingFileName = DefaultMappingFileName
+PngFileName     = DefaultPngFileName
 
 #==============================================================================
 # show usage help
@@ -61,14 +64,17 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-d=filename[.json]] [-m=filename[.json]] [-c#[#]]
+    %s [-h] [-d=filename[.json]] [-m=filename[.json]] [-p=filename[.png]]
+         [-c#[#]] [-t='xxxx']
 
 where:
 
     -h . . . . . . this help text
     -d=xxxx  . . . name of dataset file (default '%s')
     -m=xxxx  . . . name of mapping file (default '%s')
+    -p=xxxx  . . . name of png output file (default '%s')
     -c=##  . . . . channel selector(s) (optional)
+    -t=xxx . . . . graph title override (optional)
 
 channel selectors, if specified, are a list of digits which identify the
 indexes of the data channels to graph.  for instance:
@@ -78,7 +84,8 @@ indexes of the data channels to graph.  for instance:
 selects channels 4 and 2, in that order, with the first becoming the left
 axis and the second becoming the right axis.
 '''
-  print(HelpText % (sys.argv[0], DefaultDataSetFileName, DefaultMappingFileName))
+  print(HelpText % (sys.argv[0], DefaultDataSetFileName,
+    DefaultMappingFileName, DefaultPngFileName))
   os._exit(1)
 
 #==============================================================================
@@ -127,6 +134,20 @@ for arg in sys.argv[1:]:
           MappingFileName += '.json'
       except:
         ShowErrorToken(arg)
+    elif arg.startswith('-p='):
+      try:
+        PngFileName = arg[3:]
+        if len(PngFileName) < 1:
+          ShowErrorToken(arg)
+      except:
+        ShowErrorToken(arg)
+    elif arg.startswith('-t='):
+      try:
+        TitleOverride = arg[3:]
+        if len(TitleOverride) < 1:
+          ShowErrorToken(arg)
+      except:
+        ShowErrorToken(arg)
     elif arg.startswith('-c='):
       try:
         ChannelFilter = int(arg[3:]) # for exception side-effect
@@ -140,6 +161,12 @@ for arg in sys.argv[1:]:
   else:
     ShowErrorToken(arg)
 
+if PngFileName:
+  if not '.' in PngFileName:
+    if ChannelFilter:
+      PngFileName += '-%s' % (ChannelFilter)
+    PngFileName += '.png'
+
 #==============================================================================
 # graph a dataset
 #==============================================================================
@@ -148,12 +175,12 @@ try:
   DataSet = json.load(open(DataSetFileName))
   try:
     Mapping = json.load(open(MappingFileName))
-
+    if TitleOverride:
+      Mapping['title'] = TitleOverride
     if ChannelFilter:
       FilteredChannels = []
       for GraphIndex, ChannelIndex in enumerate(ChannelFilter):
         ChannelIndex = int(ChannelIndex)
-        print('Channel Index %d' % (ChannelIndex))
         try:
           Channel = Mapping['channels'][ChannelIndex-1]
           if GraphIndex == 0:
@@ -166,7 +193,6 @@ try:
         except:
           ShowError("unable to apply filter channel %d" % (ChannelIndex))
       Mapping['channels'] = FilteredChannels
-
     for Channel in Mapping['channels']:
       if not Channel['name'] in DataSet['channels']:
         print("*** mapping channel '%s' not found in dataset!" % (Channel['name']))
@@ -234,8 +260,13 @@ try:
           plt.show()
       else:
         plt.show()
-      if 'outfile' in Mapping:
-        fig.savefig(Mapping['outfile'])
+      if PngFileName:
+        print('   output: %s' % (PngFileName))
+        fig.savefig(PngFileName)
+      else:
+        if 'outfile' in Mapping:
+          print('   output: %s' % (Mapping['outfile']))
+          fig.savefig(Mapping['outfile'])
     except:
       print("*** error rendering plot!")
   except:
