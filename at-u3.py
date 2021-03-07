@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# todo: adjust sleep intervals to keep in sync with clock time
+
 #==============================================================================
 # perform a sequence of operations on an rd6006 voltage/current source and
 # save the resulting dataset to a file.  the rd6006 class also works
@@ -7,7 +9,7 @@
 #==============================================================================
 
 PROGRAM = 'at-u3.py'
-VERSION = '2.103.061'
+VERSION = '2.103.071'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -232,14 +234,10 @@ print('  output file . . . . . %s'              % (OutputFileName))
 #==============================================================================
 
 print()
-print('final input vector:')
-print()
-
 LoopDelay = float(LoopDelay) / 1000.0
 QuickSample = 1
 LongSettling = 0
 InputSet = []
-InputValues = [0] * InputCount
 Time0 = time.time()
 try:
   LabJack = u3.U3()
@@ -261,6 +259,8 @@ try:
       FeedbackArguments.append(u3.AIN(Input, 31, QuickSample=QuickSample, LongSettling=LongSettling))
     for Loop in range(LoopCount):
       results = LabJack.getFeedback(FeedbackArguments)
+      Summary = ''
+      InputValues = []
       for Input in range(InputCount):
         if isHV is True and Input < 4:
           lowVoltage = False # use high voltage calibration
@@ -270,14 +270,13 @@ try:
         Value -= ChannelTare  [Input]
         Value *= ChannelScale [Input]
         Value += ChannelOffset[Input]        
-        InputValues[Input] = Value        
+        InputValues.append(Value)
+        Summary += '%6.3f  ' % (Value)
       Time = time.time() - Time0
       InputSet.append({'time': Time, 'values': InputValues})
+      print('%06.2f  %s' % (Time, Summary), end='\r')
       time.sleep(LoopDelay)
-    Summary = ''
-    for Input in range(InputCount):
-      Summary += '%6.3f  ' % (InputValues[Input])
-    print(' %s' % Summary)
+    print()
   finally:
     LabJack.close()
 except:

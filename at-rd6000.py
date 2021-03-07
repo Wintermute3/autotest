@@ -7,7 +7,7 @@
 #==============================================================================
 
 PROGRAM = 'at-rd6000.py'
-VERSION = '2.103.061'
+VERSION = '2.103.071'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -58,6 +58,12 @@ class RD6006:
     else:
       self.ampres = 1000 # RD6006 or other
 
+  def __enter__(self):
+    return self
+
+  def __exit__(self, type, value, traceback):
+    pass
+
   def __repr__(self):
     return f"RD6006 SN:{self.sn} FW:{self.fw}"
 
@@ -87,6 +93,14 @@ class RD6006:
     print(
       f"M{M}: {regs[0] / self.voltres:4.1f}V, {regs[1] / self.ampres:3.3f}A, OVP:{regs[2] / self.voltres:4.1f}V, OCP:{regs[3] / self.ampres:3.3f}A"
     )
+
+  @property
+  def serial(self):
+    return self.sn
+
+  @property
+  def firmware(self):
+    return self.fw
 
   @property
   def input_voltage(self):
@@ -246,7 +260,8 @@ class RD6006:
 # show usage help
 #==============================================================================
 
-OutputFileName = None
+OutputFileName    = None
+SemaphoreFileName = None
 
 def ShowHelp():
   HelpText = '''\
@@ -260,12 +275,16 @@ usage:
 where:
 
     -h . . . . . . this help text
-    -i=# . . . . . specify power supply index (default 1)
-    -o=xxxx  . . . name of output file (optional)
+    -i=# . . . . . specify power supply index (default 1) or serial number
+    -o=xxxxx . . . name of output file (optional)
+    -s=xxxxx . . . name of semaphore file (optional)
     command  . . . command, as listed below (repeat as desired)
 
 if more than one power supply, select the desired one by supplying an integer
 index, 1 for the first one, 2 for the second one, etc.
+
+if a semaphore file is specified, the program will intialized, but then wait for
+the semaphore file to be present before starting the command sequence.
 
 commands may be any of:
 
@@ -491,6 +510,7 @@ def RunSequence(Sequence, Repeats, Depth):
 #==============================================================================
 
 SupplyIndex = 1
+SupplySerial = None
 
 Tokens = []
 Depth = 0
@@ -504,6 +524,8 @@ for arg in sys.argv[1:]:
       elif arg.startswith('-i='):
         try:
           SupplyIndex = int(arg[3:])
+          if SupplyIndex > 99:
+            SupplySerial = SupplyIndex
         except:
           ShowErrorToken(arg)
       elif arg.startswith('-o='):
@@ -513,6 +535,13 @@ for arg in sys.argv[1:]:
             ShowErrorToken(arg)
           if not '.' in OutputFileName:
             OutputFileName += '.json'
+        except:
+          ShowErrorToken(arg)
+      elif arg.startswith('-s='):
+        try:
+          SemaphoreFileName = arg[3:]
+          if len(SemaphoreFileName) < 1:
+            ShowErrorToken(arg)
         except:
           ShowErrorToken(arg)
       else:
@@ -589,6 +618,11 @@ if not len(Ports):
   print()
   os._exit(1)
 
+for Index in range(len(Ports)):
+  with RD6006(Ports[Index]) as Supply:
+    if Supply.serial == SupplySerial:
+      SupplyIndex = Index+1
+
 if len(Ports) < SupplyIndex:
   print()
   print("*** power supply index %d out of range" % (SupplyIndex))
@@ -597,26 +631,28 @@ if len(Ports) < SupplyIndex:
 
 try:
   Supply = RD6006(Ports[SupplyIndex-1])
-  print('  found an rd%d at index %d' % (Supply.type, SupplyIndex))
+  print('  found an rd%d at index %d (serial %s, firmware %s)' % (Supply.type, SupplyIndex, Supply.serial, Supply.firmware))
 except serial.serialutil.SerialException:
   print("*** you don't have permission to use the serial/usb port.  to fix this")
-  print('*** sad state of affairs, first run the following command:')
+  print('*** sad state of affairs, do the following:')
   print()
-  print('  sudo usermod -a -G dialout $USER')
+  print('sudoedit /etc/udev/rules.d/50-myusb.rules')
+  print('save this text:')
   print()
-
-#sudoedit /etc/udev/rules.d/50-myusb.rules
-#Save this text:
-
-#KERNEL=="ttyUSB[0-9]*",MODE="0666"
-#KERNEL=="ttyACM[0-9]*",MODE="0666"
-
-  print('*** then log off and back on to make the change effective, and try again.')
+  print('  #KERNEL=="ttyUSB[0-9]*",MODE="0666"')
+  print('  #KERNEL=="ttyACM[0-9]*",MODE="0666"')
+  print()
+  print('*** then unplug and reconnect the supply, and try again.')
   print()
   os._exit(1)
 
 print()
 if Tokens:
+  if SemaphoreFileName:
+    print("waiting for semaphore file '%s' to appear..." % (SemaphoreFileName))
+    while not os.path.exists(SemaphoreFileName):
+      time.sleep(0.2)
+    print()
   print('executing sequence of %d commands:' % (len(Tokens)))
   print()
   RunSequence(Sequence, 1, 1)

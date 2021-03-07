@@ -2,7 +2,7 @@
 
 # data collection
 
-WAITFOR=.go
+WAITFOR=rd-go
 
 rm -f u3-output.json rd-pv.json rd-bat.json
 

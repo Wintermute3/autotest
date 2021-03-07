@@ -1,0 +1,21 @@
+{
+  "title": "solinear",
+  "view": true,
+  "outfile": "graph.png",
+  "legend": {
+    "position": "center right"
+  },
+  "x-axis": {
+    "label": "time",
+    "ticks": 11
+  },
+  "channels": [
+    { "name":   "pv.v", "label": {"name": "pv volts"       }},
+    { "name":  "bat.v", "label": {"name": "battery volts"  }},
+    { "name": "load.v", "label": {"name": "load volts"     }},
+    { "name":  "rd2.v", "label": {"name": "psu-2 volts"    }},
+    { "name":   "pv.i", "label": {"name": "pv current"     }},
+    { "name":  "bat.i", "label": {"name": "battery current"}},
+    { "name": "load.i", "label": {"name": "load current"   }}
+  ]
+}
