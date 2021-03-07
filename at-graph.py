@@ -40,11 +40,20 @@ except:
   ImportError('matplotlib')
 
 #==============================================================================
-# show usage help
+# parameter values
 #==============================================================================
 
-DataSetFileName = 'at-dataset.json'
-MappingFileName = 'at-mapping.json'
+ChannelFilter = None
+
+DefaultDataSetFileName = 'at-dataset.json'
+DefaultMappingFileName = 'at-mapping.json'
+
+DataSetFileName = DefaultDataSetFileName
+MappingFileName = DefaultMappingFileName
+
+#==============================================================================
+# show usage help
+#==============================================================================
 
 def ShowHelp():
   HelpText = '''\
@@ -69,7 +78,7 @@ indexes of the data channels to graph.  for instance:
 selects channels 4 and 2, in that order, with the first becoming the left
 axis and the second becoming the right axis.
 '''
-  print(HelpText % (sys.argv[0], DataSetFileName, MappingFileName))
+  print(HelpText % (sys.argv[0], DefaultDataSetFileName, DefaultMappingFileName))
   os._exit(1)
 
 #==============================================================================
@@ -118,6 +127,14 @@ for arg in sys.argv[1:]:
           MappingFileName += '.json'
       except:
         ShowErrorToken(arg)
+    elif arg.startswith('-c='):
+      try:
+        ChannelFilter = int(arg[3:]) # for exception side-effect
+        ChannelFilter = arg[3:]
+        if len(ChannelFilter) < 1:
+          ShowErrorToken(arg)
+      except:
+        ShowErrorToken(arg)
     else:
       ShowErrorToken(arg)
   else:
@@ -131,6 +148,25 @@ try:
   DataSet = json.load(open(DataSetFileName))
   try:
     Mapping = json.load(open(MappingFileName))
+
+    if ChannelFilter:
+      FilteredChannels = []
+      for GraphIndex, ChannelIndex in enumerate(ChannelFilter):
+        ChannelIndex = int(ChannelIndex)
+        print('Channel Index %d' % (ChannelIndex))
+        try:
+          Channel = Mapping['channels'][ChannelIndex-1]
+          if GraphIndex == 0:
+            Channel['color'] = "red"
+            Channel['label']['side'] = "left"
+          else:
+            Channel['color'] = "blue"
+            Channel['label']['side'] = "right"
+          FilteredChannels.append(Channel)
+        except:
+          ShowError("unable to apply filter channel %d" % (ChannelIndex))
+      Mapping['channels'] = FilteredChannels
+
     for Channel in Mapping['channels']:
       if not Channel['name'] in DataSet['channels']:
         print("*** mapping channel '%s' not found in dataset!" % (Channel['name']))
