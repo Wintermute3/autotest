@@ -1,19 +1,18 @@
 {
-  "view": true,
   "legend": {
     "position": "upper right"
   },
   "x-axis": {
-    "label": "time",
+    "label": "seconds",
     "ticks": 11
   },
   "channels": [
-    { "name":   "pv.v", "label": {"name": "pv volts"          }},
-    { "name":  "bat.v", "label": {"name": "battery volts"     }},
-    { "name": "load.v", "label": {"name": "load volts"        }},
-    { "name":   "pv.i", "label": {"name": "pv current ma"     }},
-    { "name":   "none", "label": {"name": "unused"            }},
-    { "name":  "bat.i", "label": {"name": "battery current ma"}},
-    { "name": "load.i", "label": {"name": "load current ma"   }}
+    { "name":   "pv.i", "label": {"name": "pv mA"      }},
+    { "name":   "pv.v", "label": {"name": "pv V"       }},
+    { "name":  "bat.i", "label": {"name": "battery mA" }},
+    { "name":  "bat.v", "label": {"name": "battery V"  }},
+    { "name": "load.i", "label": {"name": "load mA"    }},
+    { "name": "load.v", "label": {"name": "load V"     }},
+    { "name": "psu2.v", "label": {"name": "psu2 V"     }}
   ]
 }
