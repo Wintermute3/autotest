@@ -51,8 +51,10 @@ InputCount =   4
 LoopCount  =  10
 LoopDelay  = 100
 
+DefaultOutputFileName = '%s-output.json' % (PROGRAM.split('.')[0])
+
+OutputFileName = DefaultOutputFileName
 ConfigFileName = None
-OutputFileName = '%s-output.json' % (PROGRAM.split('.')[0])
 
 #==============================================================================
 # report errors
@@ -101,7 +103,7 @@ where:
     -o=xxxx  . . . name of output file (default '%s')
 '''
   print(HelpText % (sys.argv[0], 
-    InputCount, LoopDelay, LoopCount, OutputFileName))
+    InputCount, LoopDelay, LoopCount, DefaultOutputFileName))
   os._exit(1)
 
 #==============================================================================

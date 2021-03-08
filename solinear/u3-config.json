@@ -1,5 +1,4 @@
 {
-  "outputfile": "u3-output.json",
   "loop": {
     "delay": 100,
     "count": 250
