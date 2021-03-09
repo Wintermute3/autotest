@@ -9,7 +9,7 @@
 #==============================================================================
 
 PROGRAM = 'at-u3.py'
-VERSION = '2.103.071'
+VERSION = '2.103.081'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -102,7 +102,7 @@ where:
     -c=xxxx  . . . name of config file (optional)
     -o=xxxx  . . . name of output file (default '%s')
 '''
-  print(HelpText % (sys.argv[0], 
+  print(HelpText % (sys.argv[0],
     InputCount, LoopDelay, LoopCount, DefaultOutputFileName))
   os._exit(1)
 
@@ -240,7 +240,6 @@ LoopDelay = float(LoopDelay) / 1000.0
 QuickSample = 1
 LongSettling = 0
 InputSet = []
-Time0 = time.time()
 try:
   LabJack = u3.U3()
   LabJack.getCalibrationData()
@@ -259,6 +258,8 @@ try:
       isHV = False
     for Input in range(InputCount):
       FeedbackArguments.append(u3.AIN(Input, 31, QuickSample=QuickSample, LongSettling=LongSettling))
+    Time0 = time.time()
+    Time1 = Time0
     for Loop in range(LoopCount):
       results = LabJack.getFeedback(FeedbackArguments)
       Summary = ''
@@ -271,13 +272,16 @@ try:
         Value = LabJack.binaryToCalibratedAnalogVoltage(results[2 + Input], isLowVoltage=lowVoltage, isSingleEnded=True)
         Value -= ChannelTare  [Input]
         Value *= ChannelScale [Input]
-        Value += ChannelOffset[Input]        
+        Value += ChannelOffset[Input]
         InputValues.append(Value)
         Summary += '%6.3f  ' % (Value)
       Time = time.time() - Time0
       InputSet.append({'time': Time, 'values': InputValues})
       print('%06.2f  %s' % (Time, Summary), end='\r')
-      time.sleep(LoopDelay)
+      Time2 = time.time()
+      Delay = LoopDelay - (Time2 - Time1)
+      time.sleep(Delay)
+      Time1 += LoopDelay
     print()
   finally:
     LabJack.close()
