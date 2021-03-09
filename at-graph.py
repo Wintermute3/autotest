@@ -5,7 +5,7 @@
 #==============================================================================
 
 PROGRAM = 'at-graph.py'
-VERSION = '2.103.071'
+VERSION = '2.103.081'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -210,6 +210,7 @@ try:
       axis2 = None
       Lines = []
       Labels = []
+      Units = []
       for ChannelIndex, MappingChannel in enumerate(Mapping['channels']):
         for Index, DataChannel in enumerate(DataSet['channels']):
           if DataChannel == MappingChannel['name']:
@@ -226,10 +227,14 @@ try:
             for Item in DataSet['data']:
               Value = float(Item['values'][Index])
               Y.append(((Value - Tare) * Scale) + Offset)
-            if 'label' in MappingChannel and 'name' in MappingChannel['label']:
-              Label = MappingChannel['label']['name']
-            else:
-              Label = 'Channel %d' % (ChannelIndex)
+            Label = 'Channel %d' % (ChannelIndex)
+            if 'label' in MappingChannel:
+              if 'name' in MappingChannel['label']:
+                Label = MappingChannel['label']['name']
+              if 'unit' in MappingChannel['label']:
+                Unit = MappingChannel['label']['unit']
+                Units.append(Unit)
+                Label += ' ' + Unit
             Color=None
             if 'color' in MappingChannel:
               Color = MappingChannel['color']
@@ -238,6 +243,9 @@ try:
                 axis2 = axis1.twinx()
               Line, = axis2.plot(X, Y, color=Color, label=Label)
               axis2.set_ylabel(Label)
+              if len(Units) == 2 and Units[0] == Units[1]:
+                bottom, top = axis1.ylim()
+                axis2.ylim(bottom, top)
             else:
               Line, = axis1.plot(X, Y, color=Color, label=Label)
               axis1.set_ylabel(Label)

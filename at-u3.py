@@ -13,6 +13,7 @@ VERSION = '2.103.081'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
+from pathlib import Path
 
 print()
 print("%s %s" % (PROGRAM, VERSION))
@@ -51,9 +52,11 @@ InputCount =   4
 LoopCount  =  10
 LoopDelay  = 100
 
-DefaultOutputFileName = '%s-output.json' % (PROGRAM.split('.')[0])
+DefaultOutputFileName    = '%s-output.json' % (PROGRAM.split('.')[0])
+DefaultSemaphoreFileName = '%s.go'          % (PROGRAM.split('.')[0])
 
 OutputFileName = DefaultOutputFileName
+SemaphoreFileName  = DefaultSemaphoreFileName
 ConfigFileName = None
 
 #==============================================================================
@@ -91,7 +94,8 @@ def ShowHelp():
 
 usage:
 
-    %s [-h] [-n=1..12] [-t=###] [-l=###] [-c=filename[.json]] [-o=filename[.json]]
+    %s [-h] [-n=1..12] [-t=###] [-l=###]
+      [-s=filename] [-c=filename[.json]] [-o=filename[.json]]
 
 where:
 
@@ -99,11 +103,12 @@ where:
     -n=# . . . . . number of inputs to scan (default %d, range 1..12)
     -t=# . . . . . time between sample loops (milliseconds, default %d)
     -l=# . . . . . number of sample loops (default %d)
-    -c=xxxx  . . . name of config file (optional)
-    -o=xxxx  . . . name of output file (default '%s')
+    -s=xxxxx . . . name of semaphore file (default '%s')
+    -c=xxxxx . . . name of config file (optional)
+    -o=xxxxx . . . name of output file (default '%s')
 '''
   print(HelpText % (sys.argv[0],
-    InputCount, LoopDelay, LoopCount, DefaultOutputFileName))
+    InputCount, LoopDelay, LoopCount, DefaultSemaphoreFileName, DefaultOutputFileName))
   os._exit(1)
 
 #==============================================================================
@@ -136,12 +141,19 @@ for arg in sys.argv[1:]:
           ShowErrorToken(arg)
       except:
         ShowErrorToken(arg)
+    elif arg.startswith('-s='):
+      try:
+        SemaphoreFileName = arg[3:]
+        if len(SemaphoreFileName) < 1:
+          ShowErrorToken(arg)
+      except:
+        ShowErrorToken(arg)
     elif arg.startswith('-c='):
       try:
         ConfigFileName = arg[3:]
         if len(ConfigFileName) < 1:
           ShowErrorToken(arg)
-        if not '.' in ConfigFileName:
+        if not ConfigFileName.endswith('.json'):
           ConfigFileName += '.json'
       except:
         ShowErrorToken(arg)
@@ -150,7 +162,7 @@ for arg in sys.argv[1:]:
         OutputFileName = arg[3:]
         if len(OutputFileName) < 1:
           ShowErrorToken(arg)
-        if not '.' in OutputFileName:
+        if not OutputFileName.endswith('.json'):
           OutputFileName += '.json'
       except:
         ShowErrorToken(arg)
@@ -222,6 +234,7 @@ if not ChannelName:
 
 if ConfigFileName:
   print('  config file . . . . . %s'            % (ConfigFileName))
+  print('   touch file . . . . . %s'            % (SemaphoreFileName ))
   print('  channel names . . . . %s'            % (ChannelName   ))
   print('          tares . . . . %s'            % (ChannelTare   ))
   print('          scales  . . . %s'            % (ChannelScale  ))
@@ -260,6 +273,7 @@ try:
       FeedbackArguments.append(u3.AIN(Input, 31, QuickSample=QuickSample, LongSettling=LongSettling))
     Time0 = time.time()
     Time1 = Time0
+    Path(SemaphoreFileName).touch()
     for Loop in range(LoopCount):
       results = LabJack.getFeedback(FeedbackArguments)
       Summary = ''

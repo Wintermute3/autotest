@@ -7,12 +7,12 @@
     "ticks": 11
   },
   "channels": [
-    { "name":   "pv.i", "label": {"name": "pv mA"      }},
-    { "name":   "pv.v", "label": {"name": "pv V"       }},
-    { "name":  "bat.i", "label": {"name": "battery mA" }},
-    { "name":  "bat.v", "label": {"name": "battery V"  }},
-    { "name": "load.i", "label": {"name": "load mA"    }},
-    { "name": "load.v", "label": {"name": "load V"     }},
-    { "name": "psu2.v", "label": {"name": "psu2 V"     }}
+    { "name":   "pv.i", "label": {"name": "pv"     , "unit": "mA" }},
+    { "name":   "pv.v", "label": {"name": "pv"     , "unit": "V"  }},
+    { "name":  "bat.i", "label": {"name": "battery", "unit": "mA" }},
+    { "name":  "bat.v", "label": {"name": "battery", "unit": "V"  }},
+    { "name": "load.i", "label": {"name": "load"   , "unit": "mA" }},
+    { "name": "load.v", "label": {"name": "load"   , "unit": "V"  }},
+    { "name": "psu2.v", "label": {"name": "psu2"   , "unit": "V"  }}
   ]
 }
