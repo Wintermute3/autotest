@@ -121,7 +121,7 @@ for arg in sys.argv[1:]:
         DataSetFileName = arg[3:]
         if len(DataSetFileName) < 1:
           ShowErrorToken(arg)
-        if not '.' in DataSetFileName:
+        if not DataSetFileName.endswith('.json'):
           DataSetFileName += '.json'
       except:
         ShowErrorToken(arg)
@@ -130,7 +130,7 @@ for arg in sys.argv[1:]:
         MappingFileName = arg[3:]
         if len(MappingFileName) < 1:
           ShowErrorToken(arg)
-        if not '.' in MappingFileName:
+        if not MappingFileName.endswith('.json'):
           MappingFileName += '.json'
       except:
         ShowErrorToken(arg)
@@ -162,7 +162,7 @@ for arg in sys.argv[1:]:
     ShowErrorToken(arg)
 
 if PngFileName:
-  if not '.' in PngFileName:
+  if not PngFileName.endswith('.png'):
     if ChannelFilter:
       PngFileName += '-%s' % (ChannelFilter)
     PngFileName += '.png'
@@ -244,8 +244,10 @@ try:
               Line, = axis2.plot(X, Y, color=Color, label=Label)
               axis2.set_ylabel(Label)
               if len(Units) == 2 and Units[0] == Units[1]:
-                bottom, top = axis1.ylim()
-                axis2.ylim(bottom, top)
+                b1, t1 = axis1.get_ylim()
+                b2, t2 = axis2.get_ylim()
+                axis1.set_ylim(min(b1,b2), max(t1,t2))
+                axis2.set_ylim(min(b1,b2), max(t1,t2))
             else:
               Line, = axis1.plot(X, Y, color=Color, label=Label)
               axis1.set_ylabel(Label)
