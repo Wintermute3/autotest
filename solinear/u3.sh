@@ -3,7 +3,6 @@
 # data collection loop
 
 VARS='test-vars.sh'
-
 while true; do
   ./test.sh
   rm -f ${START_FLAG} ${END_FLAG}
