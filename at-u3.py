@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# todo: adjust sleep intervals to keep in sync with clock time
-
 #==============================================================================
 # perform a sequence of operations on an rd6006 voltage/current source and
 # save the resulting dataset to a file.  the rd6006 class also works
@@ -9,7 +7,7 @@
 #==============================================================================
 
 PROGRAM = 'at-u3.py'
-VERSION = '2.103.081'
+VERSION = '2.103.101'
 CONTACT = 'bright.tiger@mail.com' # michael nagy
 
 import os, sys, time, json
@@ -301,14 +299,6 @@ try:
     LabJack.close()
 except:
   print("*** couldn't find a labjack u3 device - is one plugged in and turned on?")
-  print()
-  os._exit(1)
-  print("*** you don't have permission to use the serial/usb port.  to fix this")
-  print('*** sad state of affairs, first run the following command:')
-  print()
-  print('  sudo usermod -a -G dialout $USER')
-  print()
-  print('*** then log off and back on to make the change effective, and try again.')
   print()
   os._exit(1)
 
