@@ -158,10 +158,9 @@ for arg in sys.argv[1:]:
     elif arg.startswith('-o='):
       try:
         OutputFileName = arg[3:]
-        if len(OutputFileName) < 1:
-          ShowErrorToken(arg)
-        if not OutputFileName.endswith('.json'):
-          OutputFileName += '.json'
+        if len(OutputFileName):
+          if not OutputFileName.endswith('.json'):
+            OutputFileName += '.json'
       except:
         ShowErrorToken(arg)
     else:
@@ -173,10 +172,11 @@ for arg in sys.argv[1:]:
 # load configuration from file if available
 #==============================================================================
 
-ChannelName = []
-ChannelTare = []
-ChannelScale = []
+ChannelName   = []
+ChannelTare   = []
+ChannelScale  = []
 ChannelOffset = []
+DisplayValues = []
 
 if ConfigFileName:
   try:
@@ -187,7 +187,10 @@ if ConfigFileName:
           if 'name' in Channel:
             ChannelName.append(Channel['name'])
           else:
-            ChannelName.append('input-%d' % (Input))
+            if 'note' in Channel:
+              ChannelName.append(Channel['note'])
+            else:
+              ChannelName.append('input-%d' % (Input))
           if 'tare' in Channel:
             ChannelTare.append(Channel['tare'])
           else:
@@ -200,6 +203,7 @@ if ConfigFileName:
             ChannelOffset.append(Channel['offset'])
           else:
             ChannelOffset.append(0.0)
+          DisplayValues.append(0.0)
         InputCount = len(Config['channels'])
       except:
         ShowErrorConfig('channels')
@@ -225,6 +229,7 @@ if not ChannelName:
     ChannelTare  .append(0.0)
     ChannelScale .append(1.0)
     ChannelOffset.append(0.0)
+    DisplayValues.append(0.0)
 
 #==============================================================================
 # show the active option values
@@ -272,6 +277,18 @@ try:
     Time0 = time.time()
     Time1 = Time0
     Path(SemaphoreFileName).touch()
+    print('     time', end='')
+    for Input in range(InputCount):
+      if ChannelName[Input]:
+        Name = ChannelName[Input]
+      else:
+        Name = '%02d' % (Input)
+      print('%10s' % (Name), end='')
+    print()
+    print('   ------', end='')
+    for Input in range(InputCount):
+      print('%10s' % ('-' * 8), end='')
+    print()
     for Loop in range(LoopCount):
       results = LabJack.getFeedback(FeedbackArguments)
       Summary = ''
@@ -286,10 +303,15 @@ try:
         Value *= ChannelScale [Input]
         Value += ChannelOffset[Input]
         InputValues.append(Value)
-        Summary += '%6.3f  ' % (Value)
+        #DisplayValues[Input] *=    9.0 / 10.0
+        #DisplayValues[Input] +=  Value / 10.0
+        #Display = DisplayValues[Input] / 10.0 # smoothing
+        #Summary += '%8.3f  ' % (Display)
+        Summary += '%8.3f  ' % (Value)
       Time = time.time() - Time0
-      InputSet.append({'time': Time, 'values': InputValues})
-      print('%06.2f  %s' % (Time, Summary), end='\r')
+      if OutputFileName:
+        InputSet.append({'time': Time, 'values': InputValues})
+      print('   %06.2f  %s' % (Time, Summary), end='\r')
       Time2 = time.time()
       Delay = LoopDelay - (Time2 - Time1)
       time.sleep(Delay)
@@ -297,23 +319,27 @@ try:
     print()
   finally:
     LabJack.close()
+except KeyboardInterrupt:
+  print()
+  pass
 except:
   print("*** couldn't find a labjack u3 device - is one plugged in and turned on?")
   print()
   os._exit(1)
 
-with open(OutputFileName, 'w') as f:
-  Channels = []
-  for Input in range(InputCount):
-    Channels.append(ChannelName[Input])
-  DataSet = {
-    'channels': Channels,
-    'data'    : InputSet
-  }
-  f.write(json.dumps(DataSet, indent=2))
+if OutputFileName:
+  with open(OutputFileName, 'w') as f:
+    Channels = []
+    for Input in range(InputCount):
+      Channels.append(ChannelName[Input])
+    DataSet = {
+      'channels': Channels,
+      'data'    : InputSet
+    }
+    f.write(json.dumps(DataSet, indent=2))
 
-print()
-print('done - wrote %d sample sets to %s' % (len(InputSet), OutputFileName))
+  print()
+  print('done - wrote %d sample sets to %s' % (len(InputSet), OutputFileName))
 print()
 
 #==============================================================================

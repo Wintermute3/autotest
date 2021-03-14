@@ -1,0 +1,14 @@
+{
+  "loop": {
+    "delay": 20
+  },
+  "channels": [
+    { "name":   "pv.i", "tare": 0.0, "scale": -1000.0, "offset": 0.0, "note": "ain0"           },
+    { "name":   "pv.v", "tare": 0.0, "scale":     1.0, "offset": 0.0, "note": "ain1"           },
+    { "name":  "bat.i", "tare": 0.0, "scale":  1000.0, "offset": 0.0, "note": "ain2"           },
+    { "name":  "bat.v", "tare": 0.0, "scale":     1.0, "offset": 0.0, "note": "ain3"           },
+    { "name": "load.i", "tare": 0.0, "scale":  1000.0, "offset": 0.0, "note": "fio4"           },
+    { "name": "load.v", "tare": 0.0, "scale":   5.545, "offset": 0.0, "note": "fio5 w/100-22"  },
+    { "name": "psu2.v", "tare": 0.0, "scale":   5.545, "offset": 0.0, "note": "fio6 w/100-22"  }
+  ]
+}
